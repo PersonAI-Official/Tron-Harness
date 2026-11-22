@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
-import { Check, ChevronRight, Plus, Trash2, X } from "lucide-react";
+import { ChevronRight, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -318,14 +318,9 @@ export function NativeToolSchemesPage() {
       ) : (
         <div className="grid gap-5 lg:grid-cols-[240px_minmax(0,1fr)]">
           <aside className="space-y-2">
-            <div className="flex items-center justify-between px-1">
-              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-on-surface-variant)]">
-                {pageT("schemes", "Schemes")}
-              </p>
-              <Button size="sm" variant="ghost" onClick={addScheme} aria-label={pageT("add", "Add scheme")}>
-                <Plus className="size-4" />
-              </Button>
-            </div>
+            <p className="px-1 text-xs font-semibold uppercase tracking-wide text-[var(--color-on-surface-variant)]">
+              {pageT("schemes", "Schemes")}
+            </p>
             <div className="space-y-1">
               {config.schemes.map((item) => {
                 const active = item.code === scheme.code;
@@ -349,8 +344,7 @@ export function NativeToolSchemesPage() {
                 );
               })}
             </div>
-            <Button className="w-full justify-start" variant="outline" onClick={addScheme}>
-              <Plus className="mr-2 size-4" />
+            <Button className="w-full" variant="outline" onClick={addScheme}>
               {pageT("add", "Add scheme")}
             </Button>
           </aside>
@@ -381,17 +375,15 @@ export function NativeToolSchemesPage() {
                     setConfig({ ...config, defaultSchemeCode: scheme.code });
                   }}
                 >
-                  <Check className="mr-2 size-4" />
                   {isDefault ? pageT("defaultScheme", "Global default") : pageT("makeDefault", "Make default")}
                 </Button>
                 <Button
                   variant="ghost"
-                  size="icon"
+                  size="sm"
                   disabled={scheme.builtIn || config.schemes.length <= 1}
-                  aria-label={pageT("remove", "Delete scheme")}
                   onClick={removeScheme}
                 >
-                  <Trash2 className="size-4" />
+                  {pageT("remove", "Delete")}
                 </Button>
               </div>
             </div>
@@ -405,7 +397,6 @@ export function NativeToolSchemesPage() {
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <p className="text-sm font-semibold">{pageT("directTools", "Directly exposed tools")}</p>
                 <Button variant="outline" onClick={openPicker}>
-                  <Plus className="mr-2 size-4" />
                   {pageT("chooseTools", "Choose tools")}
                 </Button>
               </div>
@@ -419,8 +410,8 @@ export function NativeToolSchemesPage() {
                         key={callName}
                         className="inline-flex max-w-full items-center gap-1 rounded-full border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-low)] py-1 pl-3 pr-1 text-sm"
                       >
-                        <span className="truncate" title={`${candidate?.name ?? callName} (${callName})`}>
-                          {candidate?.name ?? callName}
+                        <span className="truncate" title={candidate?.name ?? callName}>
+                          {callName}
                         </span>
                         <Button
                           variant="ghost"
