@@ -527,8 +527,9 @@ export function NativeToolSchemesPage() {
                                       className="mt-0.5"
                                       checked={checked}
                                       onChange={(event) => {
+                                        const checked = event.currentTarget.checked;
                                         setPickerSelection((current) =>
-                                          event.currentTarget.checked
+                                          checked
                                             ? [...current, tool.callName]
                                             : current.filter((value) => value !== tool.callName)
                                         );
