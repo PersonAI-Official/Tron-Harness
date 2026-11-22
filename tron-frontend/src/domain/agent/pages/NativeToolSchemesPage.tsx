@@ -27,7 +27,6 @@ type Candidate = {
   name: string;
   description: string;
   domain: string;
-  builtIn?: boolean;
 };
 
 const BUILTIN_TOOLS: Candidate[] = [
@@ -35,22 +34,19 @@ const BUILTIN_TOOLS: Candidate[] = [
     callName: "command_exec",
     name: "Run command",
     description: "Run a complete shell command string.",
-    domain: "System command",
-    builtIn: true,
+    domain: "command",
   },
   {
     callName: "command_exec_read",
     name: "Read command output",
     description: "Read status and output from a running command.",
-    domain: "System command",
-    builtIn: true,
+    domain: "command",
   },
   {
     callName: "command_exec_stop",
     name: "Stop command",
     description: "Stop a running command task.",
-    domain: "System command",
-    builtIn: true,
+    domain: "command",
   },
 ];
 
@@ -464,12 +460,9 @@ export function NativeToolSchemesPage() {
                                 }}
                               />
                               <span className="min-w-0">
-                                <span className="flex items-center gap-2">
-                                  <span className="truncate">{tool.name}</span>
-                                  {tool.builtIn ? <Badge variant="outline">{pageT("builtin", "Built-in")}</Badge> : null}
-                                </span>
+                                <span className="block truncate font-medium">{tool.callName}</span>
                                 <span className="block truncate text-xs text-[var(--color-on-surface-variant)]">
-                                  {tool.callName}
+                                  {tool.name}
                                 </span>
                               </span>
                             </label>
