@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -254,13 +253,6 @@ export function NativeToolSchemesPage() {
           </div>
         }
       />
-      <p className="max-w-3xl text-sm text-[var(--color-on-surface-variant)]">
-        {pageT(
-          "description",
-          "A scheme decides which tools are shown directly to the model. Everything else stays available through tool_search. Schemes never grant permission."
-        )}
-      </p>
-
       {error ? (
         <p role="alert" className="rounded-md border border-[var(--color-error)] p-3 text-sm text-[var(--color-error)]">
           {error}
@@ -355,29 +347,14 @@ export function NativeToolSchemesPage() {
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div className="rounded-md bg-[var(--color-surface-container-low)] p-3">
-                <p className="text-xs text-[var(--color-on-surface-variant)]">{pageT("directCount", "Direct exposure")}</p>
-                <p className="mt-1 text-2xl font-semibold">{selectedTools.length}</p>
-              </div>
-              <div className="rounded-md bg-[var(--color-surface-container-low)] p-3">
-                <p className="text-xs text-[var(--color-on-surface-variant)]">{pageT("searchCount", "Via tool_search")}</p>
-                <p className="mt-1 text-2xl font-semibold">{Math.max(0, candidates.length - selectedTools.length)}</p>
-              </div>
-              <div className="rounded-md bg-[var(--color-surface-container-low)] p-3">
-                <p className="text-xs text-[var(--color-on-surface-variant)]">{pageT("mode", "Selection")}</p>
-                <p className="mt-2 text-sm font-medium">{isDefault ? pageT("defaultScheme", "Global default") : pageT("override", "Agent override")}</p>
-              </div>
+            <div className="flex flex-wrap items-center gap-4 text-sm">
+              <span>{pageT("directCount", "Direct")}: <strong>{selectedTools.length}</strong></span>
+              <span>{pageT("searchCount", "tool_search")}: <strong>{Math.max(0, candidates.length - selectedTools.length)}</strong></span>
             </div>
 
             <div>
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <p className="text-sm font-semibold">{pageT("directTools", "Directly exposed tools")}</p>
-                  <p className="text-xs text-[var(--color-on-surface-variant)]">
-                    {pageT("directToolsHint", "Only these tools appear in the model's tool list before tool_search.")}
-                  </p>
-                </div>
+                <p className="text-sm font-semibold">{pageT("directTools", "Directly exposed tools")}</p>
                 <Button variant="outline" onClick={openPicker}>
                   <Plus className="mr-2 size-4" />
                   {pageT("chooseTools", "Choose tools")}
@@ -415,8 +392,8 @@ export function NativeToolSchemesPage() {
                   })}
                 </div>
               ) : (
-                <div className="rounded-md border border-dashed border-[var(--color-outline-variant)] p-6 text-center text-sm text-[var(--color-on-surface-variant)]">
-                  {pageT("emptyTools", "No direct tools. All authorized tools will be discovered through tool_search.")}
+                <div className="rounded-md border border-dashed border-[var(--color-outline-variant)] p-4 text-center text-sm text-[var(--color-on-surface-variant)]">
+                  {pageT("emptyTools", "None")}
                 </div>
               )}
             </div>
@@ -427,10 +404,7 @@ export function NativeToolSchemesPage() {
       <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle>{pageT("pickerTitle", "Choose directly exposed tools")}</DialogTitle>
-            <DialogDescription>
-              {pageT("pickerDescription", "Search or expand a domain. Checked tools are shown directly; unchecking moves them to tool_search.")}
-            </DialogDescription>
+            <DialogTitle>{pageT("pickerTitle", "Choose tools")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <SearchField
