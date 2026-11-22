@@ -15,9 +15,11 @@ interface PlanModeTarget {
 
 function readDefaultMode(): ToolExecutionMode {
   try {
-    const stored = localStorage.getItem(defaultModeStorageKey);
-    if (stored === "AUTO_APPROVE" || stored === "PLAN") return stored;
-    return "CONTROLLED";
+    // Plan mode is per-session (or per-draft); it must never become the
+    // default for every new conversation.
+    return localStorage.getItem(defaultModeStorageKey) === "AUTO_APPROVE"
+      ? "AUTO_APPROVE"
+      : "CONTROLLED";
   } catch {
     return "CONTROLLED";
   }
@@ -31,10 +33,12 @@ export function useChatExecutionMode(
   const { t } = useTranslation("pages");
   const toast = useToast();
   const [defaultMode, setDefaultMode] = useState<ToolExecutionMode>(readDefaultMode);
+  const [draftModes, setDraftModes] = useState<Record<string, ToolExecutionMode>>({});
   const [saving, setSaving] = useState(false);
   const savePending = useRef(false);
-  const mode = draftCode ? defaultMode : session?.executionMode ?? defaultMode;
+  const mode = draftCode ? draftModes[draftCode] ?? defaultMode : session?.executionMode ?? defaultMode;
   const rememberDefault = useCallback((next: ToolExecutionMode) => {
+    if (next === "PLAN") return;
     setDefaultMode(next);
     try { localStorage.setItem(defaultModeStorageKey, next); } catch { /* Storage may be unavailable. */ }
   }, []);
@@ -64,7 +68,12 @@ export function useChatExecutionMode(
   }, [onSessionUpdated, rememberDefault, t, toast]);
   const changeMode = useCallback(async (next: ToolExecutionMode) => {
     if (savePending.current || next === mode) return;
-    if (draftCode || !session) {
+    if (draftCode) {
+      setDraftModes((current) => ({ ...current, [draftCode]: next }));
+      rememberDefault(next);
+      return;
+    }
+    if (!session) {
       rememberDefault(next);
       return;
     }
