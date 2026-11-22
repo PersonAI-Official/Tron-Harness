@@ -592,7 +592,7 @@ const registeredRoutes: AppRoute[] = [
     pageId: "settings.toolsNativeSchemes",
     route: "/settings/tools/native-schemes",
     activeNav: "Settings",
-    title: "Native Tool Schemes",
+    title: "Tool Exposure",
     titleTranslationKey: "console:routeTitles.settings.toolsNativeSchemes",
     archetype: "settings",
     layout: "settings",

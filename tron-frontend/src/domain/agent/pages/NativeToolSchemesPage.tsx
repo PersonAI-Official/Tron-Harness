@@ -132,7 +132,7 @@ export function NativeToolSchemesPage() {
       });
     }
     for (const tool of tools) {
-      if (tool.assignable === false || byCallName.has(tool.toolName)) continue;
+      if (byCallName.has(tool.toolName)) continue;
       const code = tool.category?.code ?? "uncategorized";
       byCallName.set(tool.toolName, {
         callName: tool.toolName,
@@ -290,7 +290,7 @@ export function NativeToolSchemesPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        title={pageT("title", "Native Tool Schemes")}
+        title={pageT("title", "Tool exposure")}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" onClick={() => navigate("/settings/tools")}>

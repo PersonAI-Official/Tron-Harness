@@ -85,7 +85,7 @@ export const consoleMessages = {
       mcpServersDetail: "Platform MCP Server Detail",
       mcpServersEdit: "Edit Platform MCP Server",
       tools: "Platform Tools",
-      toolsNativeSchemes: "Native Tool Schemes",
+      toolsNativeSchemes: "Tool Exposure",
       capabilityPacks: "Capability Center",
       capabilityPackDetail: "Capability Pack Details",
       capabilityConfiguration: "Capability Configuration",

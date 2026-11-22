@@ -84,7 +84,7 @@ export function PlatformToolsPage() {
     <div className="space-y-6">
       <PageHeader title={pageT("title", "Platform Tools")} actions={<div className="flex flex-wrap items-center gap-2">
         <span role="status" className="text-xs text-[var(--color-on-surface-variant)]">{loading ? pageT("permissions.loading", "Loading tool permissions…") : dirty ? pageT("permissions.dirty", "Unsaved changes") : ""}</span>
-        <Button variant="outline" onClick={() => navigate("/settings/tools/native-schemes")}>{pageT("nativeSchemes.open", "Native tool schemes")}</Button>
+        <Button variant="outline" onClick={() => navigate("/settings/tools/native-schemes")}>{pageT("nativeSchemes.open", "Tool exposure")}</Button>
         <Button variant="outline" disabled={loading || saving || dirty} onClick={() => void refreshTools()}>{pageT("permissions.refresh", "Refresh")}</Button>
         <Button variant="outline" disabled={!dirty || saving || loading} onClick={discard}>{pageT("permissions.discard", "Discard")}</Button>
         <Button disabled={!dirty || !loaded || loading || saving} onClick={() => void savePermissions()}>{pageT(saving ? "permissions.saving" : "permissions.save", saving ? "Saving…" : "Save")}</Button>

@@ -85,7 +85,7 @@ export const consoleMessages = {
       mcpServersDetail: "平台 MCP 服务详情",
       mcpServersEdit: "编辑平台 MCP 服务",
       tools: "平台工具",
-      toolsNativeSchemes: "原生工具方案",
+      toolsNativeSchemes: "工具暴露方式",
       capabilityPacks: "能力中心",
       capabilityPackDetail: "能力包详情",
       capabilityConfiguration: "能力配置",
