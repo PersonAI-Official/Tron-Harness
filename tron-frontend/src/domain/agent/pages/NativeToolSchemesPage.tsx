@@ -26,7 +26,20 @@ type Candidate = {
   callName: string;
   name: string;
   description: string;
+  categoryCode: string;
+  categoryName: string;
   domain: string;
+};
+
+type PickerDomain = {
+  code: string;
+  tools: Candidate[];
+};
+
+type PickerCategory = {
+  code: string;
+  name: string;
+  domains: PickerDomain[];
 };
 
 const BUILTIN_TOOLS: Candidate[] = [
@@ -34,18 +47,24 @@ const BUILTIN_TOOLS: Candidate[] = [
     callName: "command_exec",
     name: "Run command",
     description: "Run a complete shell command string.",
+    categoryCode: "system.command",
+    categoryName: "",
     domain: "command",
   },
   {
     callName: "command_exec_read",
     name: "Read command output",
     description: "Read status and output from a running command.",
+    categoryCode: "system.command",
+    categoryName: "",
     domain: "command",
   },
   {
     callName: "command_exec_stop",
     name: "Stop command",
     description: "Stop a running command task.",
+    categoryCode: "system.command",
+    categoryName: "",
     domain: "command",
   },
 ];
@@ -57,7 +76,7 @@ function newSchemeCode(schemes: NativeToolSchemeRecord[]) {
 }
 
 export function NativeToolSchemesPage() {
-  const { t } = useTranslation(["pages", "common"]);
+  const { t, i18n } = useTranslation(["pages", "common"]);
   const navigate = useNavigate();
   const [config, setConfig] = useState<NativeToolConfigRecord | null>(null);
   const [tools, setTools] = useState<PlatformToolRecord[]>([]);
@@ -69,6 +88,7 @@ export function NativeToolSchemesPage() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerSearch, setPickerSearch] = useState("");
   const [pickerSelection, setPickerSelection] = useState<string[]>([]);
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(() => new Set());
   const [expandedDomains, setExpandedDomains] = useState<Set<string>>(() => new Set());
 
   const pageT = (key: string, fallback: string, options?: Record<string, unknown>) =>
@@ -97,22 +117,39 @@ export function NativeToolSchemesPage() {
     return () => controller.abort();
   }, []);
 
+  const language = i18n.resolvedLanguage ?? i18n.language;
+  const categoryName = (code: string, fallback: string) =>
+    code === "system.command"
+      ? pageT("systemCommandCategory", "System command tools")
+      : fallback || pageT("uncategorized", "Uncategorized");
+
   const candidates = useMemo(() => {
     const byCallName = new Map<string, Candidate>();
-    for (const tool of BUILTIN_TOOLS) byCallName.set(tool.callName, tool);
+    for (const tool of BUILTIN_TOOLS) {
+      byCallName.set(tool.callName, {
+        ...tool,
+        categoryName: categoryName(tool.categoryCode, ""),
+      });
+    }
     for (const tool of tools) {
       if (tool.assignable === false || byCallName.has(tool.toolName)) continue;
+      const code = tool.category?.code ?? "uncategorized";
       byCallName.set(tool.toolName, {
         callName: tool.toolName,
         name: tool.name || tool.toolName,
         description: tool.description,
+        categoryCode: code,
+        categoryName: categoryName(
+          code,
+          tool.category?.names[language] ??
+            tool.category?.names["en-US"] ??
+            code
+        ),
         domain: tool.domainCode,
       });
     }
-    return [...byCallName.values()].sort((left, right) =>
-      left.domain.localeCompare(right.domain) || left.name.localeCompare(right.name)
-    );
-  }, [tools]);
+    return [...byCallName.values()];
+  }, [language, tools, t]);
 
   const candidateByCallName = useMemo(
     () => new Map(candidates.map((tool) => [tool.callName, tool])),
@@ -122,26 +159,38 @@ export function NativeToolSchemesPage() {
   const scheme = config?.schemes.find((item) => item.code === activeCode) ?? config?.schemes[0];
   const isDefault = !!scheme && config?.defaultSchemeCode === scheme.code;
   const selectedTools = scheme?.toolIds ?? [];
-  const selectedSet = useMemo(() => new Set(selectedTools), [selectedTools]);
 
   const groupedCandidates = useMemo(() => {
     const needle = pickerSearch.trim().toLowerCase();
-    const grouped = new Map<string, Candidate[]>();
+    const categories = new Map<string, { code: string; name: string; domains: Map<string, Candidate[]> }>();
     for (const candidate of candidates) {
       if (
         needle &&
-        ![candidate.callName, candidate.name, candidate.description, candidate.domain]
+        [candidate.callName, candidate.name, candidate.description, candidate.domain, candidate.categoryName]
           .join(" ")
           .toLowerCase()
-          .includes(needle)
+          .includes(needle) === false
       ) {
         continue;
       }
-      const list = grouped.get(candidate.domain) ?? [];
-      list.push(candidate);
-      grouped.set(candidate.domain, list);
+      let category = categories.get(candidate.categoryCode);
+      if (!category) {
+        category = { code: candidate.categoryCode, name: candidate.categoryName, domains: new Map() };
+        categories.set(candidate.categoryCode, category);
+      }
+      const domain = category.domains.get(candidate.domain) ?? [];
+      domain.push(candidate);
+      category.domains.set(candidate.domain, domain);
     }
-    return [...grouped.entries()].sort(([left], [right]) => left.localeCompare(right));
+    return [...categories.values()]
+      .map((category) => ({
+        code: category.code,
+        name: category.name,
+        domains: [...category.domains.entries()]
+          .map(([code, tools]) => ({ code, tools }))
+          .sort((left, right) => left.code.localeCompare(right.code)),
+      }))
+      .sort((left, right) => left.name.localeCompare(right.name));
   }, [candidates, pickerSearch]);
 
   function updateScheme(index: number, change: Partial<NativeToolSchemeRecord>) {
@@ -192,7 +241,11 @@ export function NativeToolSchemesPage() {
   function openPicker() {
     setPickerSelection([...selectedTools]);
     setPickerSearch("");
-    setExpandedDomains(new Set(selectedTools.map((callName) => candidateByCallName.get(callName)?.domain).filter(Boolean) as string[]));
+    const selectedCandidates = selectedTools
+      .map((callName) => candidateByCallName.get(callName))
+      .filter((candidate): candidate is Candidate => !!candidate);
+    setExpandedCategories(new Set(selectedCandidates.map((candidate) => candidate.categoryCode)));
+    setExpandedDomains(new Set(selectedCandidates.map((candidate) => `${candidate.categoryCode}/${candidate.domain}`)));
     setPickerOpen(true);
   }
 
@@ -405,71 +458,96 @@ export function NativeToolSchemesPage() {
           <div className="space-y-3">
             <SearchField
               value={pickerSearch}
-              onChange={(value) => {
-                setPickerSearch(value);
-                if (value.trim()) setExpandedDomains(new Set(groupedCandidates.map(([domain]) => domain)));
-              }}
+              onChange={setPickerSearch}
               placeholder={pageT("search", "Search tools")}
             />
             <p className="text-xs text-[var(--color-on-surface-variant)]">
               {pageT("selectedCount", "{{count}} selected", { count: pickerSelection.length })}
             </p>
             <div className="max-h-[55vh] space-y-1 overflow-y-auto pr-1">
-              {groupedCandidates.map(([domain, domainTools]) => {
-                const expanded = expandedDomains.has(domain) || !!pickerSearch.trim();
-                const selectedInDomain = domainTools.filter((tool) => pickerSelection.includes(tool.callName)).length;
+              {groupedCandidates.map((category) => {
+                const categoryTools = category.domains.flatMap((domain) => domain.tools);
+                const categorySelected = categoryTools.filter((tool) => pickerSelection.includes(tool.callName)).length;
+                const categoryExpanded = !!pickerSearch.trim() || expandedCategories.has(category.code);
                 return (
-                  <div key={domain} className="rounded-md border border-[var(--color-outline-variant)]">
+                  <div key={category.code} className="overflow-hidden rounded-md border border-[var(--color-outline-variant)]">
                     <button
                       type="button"
                       className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-[var(--color-surface-container)]"
                       onClick={() =>
-                        setExpandedDomains((current) => {
+                        setExpandedCategories((current) => {
                           const next = new Set(current);
-                          if (next.has(domain)) next.delete(domain);
-                          else next.add(domain);
+                          if (next.has(category.code)) next.delete(category.code);
+                          else next.add(category.code);
                           return next;
                         })
                       }
                     >
-                      <ChevronRight className={`size-4 transition-transform ${expanded ? "rotate-90" : ""}`} />
-                      <span className="min-w-0 flex-1 truncate font-medium">{domain}</span>
+                      <ChevronRight className={`size-4 transition-transform ${categoryExpanded ? "rotate-90" : ""}`} />
+                      <span className="min-w-0 flex-1 truncate font-medium">{category.name}</span>
                       <span className="text-xs text-[var(--color-on-surface-variant)]">
-                        {selectedInDomain}/{domainTools.length}
+                        {categorySelected}/{categoryTools.length}
                       </span>
                     </button>
-                    {expanded ? (
-                      <div className="grid gap-1 border-t border-[var(--color-outline-variant)] p-2 md:grid-cols-2">
-                        {domainTools.map((tool) => {
-                          const checked = pickerSelection.includes(tool.callName);
-                          return (
-                            <label
-                              key={tool.callName}
-                              className="flex cursor-pointer items-start gap-2 rounded px-2 py-1.5 text-sm hover:bg-[var(--color-surface-container)]"
-                            >
-                              <input
-                                type="checkbox"
-                                className="mt-0.5"
-                                checked={checked}
-                                onChange={(event) => {
-                                  setPickerSelection((current) =>
-                                    event.currentTarget.checked
-                                      ? [...current, tool.callName]
-                                      : current.filter((value) => value !== tool.callName)
-                                  );
-                                }}
-                              />
-                              <span className="min-w-0">
-                                <span className="block truncate font-medium">{tool.callName}</span>
-                                <span className="block truncate text-xs text-[var(--color-on-surface-variant)]">
-                                  {tool.name}
-                                </span>
-                              </span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    ) : null}
+                    {categoryExpanded ? category.domains.map((domain) => {
+                      const key = `${category.code}/${domain.code}`;
+                      const domainSelected = domain.tools.filter((tool) => pickerSelection.includes(tool.callName)).length;
+                      const domainExpanded = !!pickerSearch.trim() || expandedDomains.has(key);
+                      return (
+                        <div key={key} className="border-t border-[var(--color-outline-variant)]">
+                          <button
+                            type="button"
+                            className="flex w-full items-center gap-2 px-3 py-1.5 pl-8 text-left text-sm hover:bg-[var(--color-surface-container)]"
+                            onClick={() =>
+                              setExpandedDomains((current) => {
+                                const next = new Set(current);
+                                if (next.has(key)) next.delete(key);
+                                else next.add(key);
+                                return next;
+                              })
+                            }
+                          >
+                            <ChevronRight className={`size-3.5 transition-transform ${domainExpanded ? "rotate-90" : ""}`} />
+                            <span className="min-w-0 flex-1 truncate text-[var(--color-on-surface-variant)]">{domain.code}</span>
+                            <span className="text-xs text-[var(--color-on-surface-variant)]">
+                              {domainSelected}/{domain.tools.length}
+                            </span>
+                          </button>
+                          {domainExpanded ? (
+                            <div className="grid gap-1 border-t border-[var(--color-outline-variant)] p-2 md:grid-cols-2">
+                              {domain.tools.map((tool) => {
+                                const checked = pickerSelection.includes(tool.callName);
+                                return (
+                                  <label
+                                    key={tool.callName}
+                                    className="flex cursor-pointer items-start gap-2 rounded px-2 py-1.5 text-sm hover:bg-[var(--color-surface-container)]"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      className="mt-0.5"
+                                      checked={checked}
+                                      onChange={(event) => {
+                                        setPickerSelection((current) =>
+                                          event.currentTarget.checked
+                                            ? [...current, tool.callName]
+                                            : current.filter((value) => value !== tool.callName)
+                                        );
+                                      }}
+                                    />
+                                    <span className="min-w-0">
+                                      <span className="block truncate font-medium">{tool.callName}</span>
+                                      <span className="block truncate text-xs text-[var(--color-on-surface-variant)]">
+                                        {tool.name}
+                                      </span>
+                                    </span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    }) : null}
                   </div>
                 );
               })}

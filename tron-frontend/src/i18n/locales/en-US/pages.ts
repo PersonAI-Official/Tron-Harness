@@ -2683,6 +2683,8 @@ export const pages = {
   },
   settingsTools: {
     nativeSchemes: {
+      systemCommandCategory: "System command tools",
+      uncategorized: "Uncategorized",
       apply: "Apply",
       cancel: "Cancel",
       builtin: "Built-in",

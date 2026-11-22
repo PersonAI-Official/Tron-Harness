@@ -2602,6 +2602,8 @@ export const pages = {
   },
   settingsTools: {
     nativeSchemes: {
+      systemCommandCategory: "系统命令工具",
+      uncategorized: "未分类",
       apply: "应用",
       cancel: "取消",
       builtin: "内置",
