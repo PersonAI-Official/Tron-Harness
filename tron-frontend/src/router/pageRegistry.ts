@@ -365,6 +365,11 @@ export const routePages: Record<string, RoutePageComponent> = {
       default: module.PlatformToolsPage,
     }))
   ),
+  "settings.toolsNativeSchemes": lazy(() =>
+    import("@/domain/agent/pages/NativeToolSchemesPage").then((module) => ({
+      default: module.NativeToolSchemesPage,
+    }))
+  ),
   "tasks.detail": lazy(() =>
     import("@/domain/task/pages/TaskDetailsPage").then((module) => ({
       default: module.TaskDetailsPage,

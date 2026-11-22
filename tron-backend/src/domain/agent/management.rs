@@ -116,6 +116,45 @@ pub struct WorkspaceInternalAgentMcpServerAssignment {
     pub updated_at: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeToolScheme {
+    pub code: String,
+    pub name: String,
+    #[serde(default)]
+    pub tool_ids: Vec<String>,
+    #[serde(default)]
+    pub built_in: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeToolConfig {
+    pub schemes: Vec<NativeToolScheme>,
+    pub default_scheme_code: String,
+    #[serde(default)]
+    pub agent_overrides: std::collections::BTreeMap<String, String>,
+}
+
+impl Default for NativeToolConfig {
+    fn default() -> Self {
+        Self {
+            schemes: vec![NativeToolScheme {
+                code: "default".into(),
+                name: "Default".into(),
+                tool_ids: vec![
+                    "command_exec".into(),
+                    "command_exec_read".into(),
+                    "command_exec_stop".into(),
+                ],
+                built_in: true,
+            }],
+            default_scheme_code: "default".into(),
+            agent_overrides: Default::default(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InternalAgentToolPolicy {
@@ -147,6 +186,9 @@ pub struct InternalAgentToolPolicy {
     pub selected_server_codes: Vec<String>,
     pub assigned_tool_count: usize,
     pub effective_tool_count: usize,
+    /// Selected native-exposure scheme; None inherits the global default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub native_tool_scheme_code: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

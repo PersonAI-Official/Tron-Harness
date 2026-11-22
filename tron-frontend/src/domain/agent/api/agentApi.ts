@@ -3,6 +3,10 @@ export const agentApiEndpoints = {
   getToolCatalogIssues: "GET /api/v1/tools/catalog-issues",
   getToolCategories: "GET /api/v1/tools/categories",
   getTools: "GET /api/v1/tools",
+  getNativeToolConfig: "GET /api/v1/tools/native-schemes",
+  replaceNativeToolConfig: "PUT /api/v1/tools/native-schemes",
+  patchAgentNativeScheme:
+    "PATCH /api/v1/agents/workspaces/{workspaceCode}/internal/{agentCode}/native-scheme",
   listMainAgentMessages: "GET /api/v1/agent/main/messages",
   listPlatformSystemAgents: "GET /api/v1/agents/registry/system",
   createPlatformSystemAgent: "POST /api/v1/agents/registry/system",

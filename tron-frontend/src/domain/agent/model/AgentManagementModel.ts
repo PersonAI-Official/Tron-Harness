@@ -113,7 +113,21 @@ export interface WorkspaceInternalAgentRecord {
   maxParallelToolCalls: number;
   selectedServerCodes: string[];
   selectedToolCodes: string[];
+  nativeToolSchemeCode?: string | null;
   source: WorkspaceInternalAgentPolicySource;
+}
+
+export interface NativeToolSchemeRecord {
+  code: string;
+  name: string;
+  toolIds: string[];
+  builtIn?: boolean;
+}
+
+export interface NativeToolConfigRecord {
+  schemes: NativeToolSchemeRecord[];
+  defaultSchemeCode: string;
+  agentOverrides?: Record<string, string>;
 }
 
 export interface CreateInternalAgentPayload {
@@ -140,6 +154,7 @@ export interface UpdateInternalAgentDefinitionPayload {
 
 export interface WorkspaceInternalAgentPolicyPayload {
   toolAssignmentMode?: ToolAssignmentMode;
+  nativeToolSchemeCode?: string;
   selectedCategoryCodes?: string[];
   maxSteps?: number;
   maxToolCalls?: number;

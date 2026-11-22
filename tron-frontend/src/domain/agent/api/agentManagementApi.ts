@@ -1,6 +1,8 @@
 import { requestApi } from "@/shared/api/httpClient";
 
 import type {
+  NativeToolConfigRecord,
+  NativeToolSchemeRecord,
   PlatformToolRecord,
   ToolCatalogDomainRecord,
   SystemAgentModelRecord,
@@ -120,6 +122,7 @@ export interface WorkspaceInternalAgentRecordApi {
   maxParallelToolCalls?: number;
   selectedServerCodes?: string[];
   selectedToolCodes: string[];
+  nativeToolSchemeCode?: string | null;
 }
 
 function normalizeAgentModels(models: ManagedSystemAgentRecordApi["models"]) {
@@ -283,6 +286,7 @@ export function normalizeWorkspaceInternalAgentRecord(
     selectedServerCodes: Array.isArray(record.selectedServerCodes)
       ? [...new Set(record.selectedServerCodes)]
       : [],
+    nativeToolSchemeCode: record.nativeToolSchemeCode ?? null,
     selectedToolCodes: Array.isArray(record.selectedToolCodes)
       ? [...new Set(record.selectedToolCodes)]
       : [],
@@ -679,5 +683,34 @@ export function deleteInternalAgentGroup(workspaceCode: string, name: string) {
   return requestApi<Record<string, never>>(
     internalGroupEndpoint(workspaceCode).replace("GET ", "DELETE "),
     { body: { name } }
+  );
+}
+
+export function getNativeToolConfig(signal?: AbortSignal) {
+  return requestApi<NativeToolConfigRecord>(agentApiEndpoints.getNativeToolConfig, {
+    signal,
+  });
+}
+
+export function replaceNativeToolConfig(payload: {
+  schemes: NativeToolSchemeRecord[];
+  defaultSchemeCode: string;
+}) {
+  return requestApi<NativeToolConfigRecord>(agentApiEndpoints.replaceNativeToolConfig, {
+    body: payload,
+  });
+}
+
+export function patchAgentNativeScheme(
+  workspaceCode: string,
+  agentCode: string,
+  schemeCode: string | null
+) {
+  return requestApi<string | null>(
+    internalAgentEndpoint(agentApiEndpoints.patchAgentNativeScheme, workspaceCode),
+    {
+      pathParams: { workspaceCode, agentCode },
+      body: { schemeCode },
+    }
   );
 }

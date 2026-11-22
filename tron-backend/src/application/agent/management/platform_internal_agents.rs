@@ -388,6 +388,7 @@ fn platform_view(
         selected_server_codes: config.selected_server_codes,
         assigned_tool_count: count,
         effective_tool_count: count,
+        native_tool_scheme_code: None,
     }
 }
 

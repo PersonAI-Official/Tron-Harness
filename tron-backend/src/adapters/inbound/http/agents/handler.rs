@@ -554,6 +554,41 @@ pub async fn deactivate_agui_stream(
     }
 }
 
+pub async fn get_native_tool_config(
+    State(agent_management): State<AgentManagementService>,
+) -> Response {
+    match agent_management.native_tool_config() {
+        Ok(config) => Json(ApiResponse::success(config)).into_response(),
+        Err(error) => agent_management_error_response(error),
+    }
+}
+
+pub async fn replace_native_tool_config(
+    State(agent_management): State<AgentManagementService>,
+    Json(request): Json<super::request::ReplaceNativeToolConfigRequest>,
+) -> Response {
+    match agent_management.replace_native_tool_config(request.schemes, request.default_scheme_code)
+    {
+        Ok(config) => Json(ApiResponse::success(config)).into_response(),
+        Err(error) => agent_management_error_response(error),
+    }
+}
+
+pub async fn update_agent_native_scheme(
+    State(agent_management): State<AgentManagementService>,
+    Path((workspace_code, agent_code)): Path<(String, String)>,
+    Json(request): Json<super::request::UpdateAgentNativeSchemeRequest>,
+) -> Response {
+    match agent_management.set_agent_native_scheme(
+        &workspace_code,
+        &agent_code,
+        request.scheme_code.as_deref(),
+    ) {
+        Ok(scheme_code) => Json(ApiResponse::success(scheme_code)).into_response(),
+        Err(error) => agent_management_error_response(error),
+    }
+}
+
 pub(super) fn to_internal_agent_policy_command(
     request: UpdateInternalAgentPolicyRequest,
 ) -> Result<UpdateWorkspaceInternalAgentPolicyCommand, (&'static str, &'static str)> {
@@ -563,6 +598,7 @@ pub(super) fn to_internal_agent_policy_command(
     };
     Ok(UpdateWorkspaceInternalAgentPolicyCommand {
         tool_assignment_mode,
+        native_tool_scheme_code: request.native_tool_scheme_code,
         selected_category_codes: request.selected_category_codes,
         max_steps: request.max_steps,
         max_tool_calls: request.max_tool_calls,

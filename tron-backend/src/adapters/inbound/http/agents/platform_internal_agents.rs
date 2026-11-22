@@ -235,6 +235,7 @@ pub async fn update_platform_internal_agent_policy(
             max_steps: request.max_steps,
             max_tool_calls: request.max_tool_calls,
             max_parallel_tool_calls: request.max_parallel_tool_calls,
+            native_tool_scheme_code: None,
         }) {
             Ok(command) => command,
             Err(_) => {

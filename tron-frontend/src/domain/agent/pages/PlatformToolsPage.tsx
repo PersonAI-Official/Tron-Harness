@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 
 import type { PlatformToolRecord, ToolCatalogDomainRecord } from "@/domain/agent/model";
@@ -17,6 +18,7 @@ type CategoryDomain = ToolCatalogDomainRecord & { categoryCode: string; tools: P
 
 export function PlatformToolsPage() {
   const { t } = useTranslation(["pages", "common"]);
+  const navigate = useNavigate();
   const { domains, tools, categories, catalogIssues, loadErrors, loading, saving, loaded, permissions, dirty, refreshTools, savePermissions, discard, setPermission } = usePlatformToolSettings();
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [domainSearch, setDomainSearch] = useState("");
@@ -82,6 +84,7 @@ export function PlatformToolsPage() {
     <div className="space-y-6">
       <PageHeader title={pageT("title", "Platform Tools")} actions={<div className="flex flex-wrap items-center gap-2">
         <span role="status" className="text-xs text-[var(--color-on-surface-variant)]">{loading ? pageT("permissions.loading", "Loading tool permissions…") : dirty ? pageT("permissions.dirty", "Unsaved changes") : ""}</span>
+        <Button variant="outline" onClick={() => navigate("/settings/tools/native-schemes")}>{pageT("nativeSchemes.open", "Native tool schemes")}</Button>
         <Button variant="outline" disabled={loading || saving || dirty} onClick={() => void refreshTools()}>{pageT("permissions.refresh", "Refresh")}</Button>
         <Button variant="outline" disabled={!dirty || saving || loading} onClick={discard}>{pageT("permissions.discard", "Discard")}</Button>
         <Button disabled={!dirty || !loaded || loading || saving} onClick={() => void savePermissions()}>{pageT(saving ? "permissions.saving" : "permissions.save", saving ? "Saving…" : "Save")}</Button>

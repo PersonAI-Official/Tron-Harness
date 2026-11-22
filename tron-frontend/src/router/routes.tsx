@@ -589,6 +589,16 @@ const registeredRoutes: AppRoute[] = [
     settingsNav: "Tools",
   },
   {
+    pageId: "settings.toolsNativeSchemes",
+    route: "/settings/tools/native-schemes",
+    activeNav: "Settings",
+    title: "Native Tool Schemes",
+    titleTranslationKey: "console:routeTitles.settings.toolsNativeSchemes",
+    archetype: "settings",
+    layout: "settings",
+    settingsNav: "Tools",
+  },
+  {
     pageId: "settings.capabilityPacks",
     route: "/settings/capability-packs",
     activeNav: "Settings",

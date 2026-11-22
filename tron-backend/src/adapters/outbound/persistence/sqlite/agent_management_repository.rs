@@ -262,6 +262,33 @@ impl AgentManagementRepository for SqliteAgentManagementRepositorySql<'_> {
         }
         tx.commit().map_err(storage_error)
     }
+    fn native_tool_config(&mut self) -> Result<Option<String>, AgentManagementError> {
+        let mut statement = self
+            .connection
+            .prepare("SELECT config_json FROM platform_native_tool_config WHERE id = 1")
+            .map_err(storage_error)?;
+        let mut rows = statement.query([]).map_err(storage_error)?;
+        rows.next()
+            .map_err(storage_error)?
+            .map(|row| row.get::<_, String>(0).map_err(storage_error))
+            .transpose()
+    }
+    fn replace_native_tool_config(
+        &mut self,
+        config_json: &str,
+    ) -> Result<(), AgentManagementError> {
+        self.connection
+            .execute(
+                "INSERT INTO platform_native_tool_config(id, config_json, updated_at)
+                 VALUES(1, ?1, ?2)
+                 ON CONFLICT(id) DO UPDATE SET
+                    config_json = excluded.config_json,
+                    updated_at = excluded.updated_at",
+                params![config_json, chrono::Utc::now().timestamp_millis()],
+            )
+            .map_err(storage_error)?;
+        Ok(())
+    }
     fn list_discovered_tools(
         &mut self,
     ) -> Result<Vec<crate::domain::agent::ToolCatalogRecord>, AgentManagementError> {
@@ -1202,6 +1229,27 @@ impl AgentManagementRepository for SqliteAgentManagementRepository {
             move |connection| {
                 SqliteAgentManagementRepositorySql { connection }
                     .replace_tool_permissions(&settings)
+            },
+            || storage_error(rusqlite::Error::InvalidQuery),
+        )
+    }
+    fn native_tool_config(&mut self) -> Result<Option<String>, AgentManagementError> {
+        self.connection.call(
+            move |connection| {
+                SqliteAgentManagementRepositorySql { connection }.native_tool_config()
+            },
+            || storage_error(rusqlite::Error::InvalidQuery),
+        )
+    }
+    fn replace_native_tool_config(
+        &mut self,
+        config_json: &str,
+    ) -> Result<(), AgentManagementError> {
+        let config_json = config_json.to_owned();
+        self.connection.call(
+            move |connection| {
+                SqliteAgentManagementRepositorySql { connection }
+                    .replace_native_tool_config(&config_json)
             },
             || storage_error(rusqlite::Error::InvalidQuery),
         )

@@ -3,6 +3,7 @@ mod internal_agents;
 mod internal_definition_error;
 mod internal_definitions;
 mod internal_groups;
+mod native_tools;
 pub(crate) mod platform_internal_agents;
 mod platform_runtime;
 mod system_agent_profiles;
@@ -46,6 +47,8 @@ use crate::{
 #[derive(Debug, Clone, Default)]
 pub struct UpdateWorkspaceInternalAgentPolicyCommand {
     pub tool_assignment_mode: Option<ToolAssignmentMode>,
+    /// Some(empty) clears the agent override; None keeps the current value.
+    pub native_tool_scheme_code: Option<String>,
     pub selected_category_codes: Option<Vec<String>>,
     pub max_steps: Option<u32>,
     pub max_tool_calls: Option<u32>,
@@ -131,6 +134,15 @@ pub trait AgentManagementRepository: Send {
         name: &str,
     ) -> Result<bool, AgentManagementError>;
 
+    fn native_tool_config(&mut self) -> Result<Option<String>, AgentManagementError> {
+        Ok(None)
+    }
+    fn replace_native_tool_config(
+        &mut self,
+        _config_json: &str,
+    ) -> Result<(), AgentManagementError> {
+        Ok(())
+    }
     fn list_tool_permissions(
         &mut self,
     ) -> Result<Vec<tron_harness_capability::ToolPermissionSetting>, AgentManagementError> {

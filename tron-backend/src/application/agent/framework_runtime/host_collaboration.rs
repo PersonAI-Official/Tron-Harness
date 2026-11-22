@@ -661,11 +661,21 @@ impl Runtime {
         request
             .extensions
             .insert(super::super::tools::tool_group_labels(context));
-        // Child runs expose the same admitted command trio; their own
-        // authorization scope still decides which bindings exist.
+        // Child runs resolve the same Agent scheme; their own authorization
+        // scope still decides which bindings exist.
+        let native_ids = match host.0.agent_management.get() {
+            Some(management) => management
+                .native_tool_ids_for_agent(
+                    context.workspace_code.as_str(),
+                    context.agent_code.as_deref().unwrap_or("main-agent"),
+                )
+                .map(super::super::tools::native_ids_from_scheme)
+                .unwrap_or_else(|_| super::super::tools::default_native_tool_ids()),
+            None => super::super::tools::default_native_tool_ids(),
+        };
         request
             .extensions
-            .insert(super::super::tools::native_tool_whitelist());
+            .insert(super::super::tools::native_tool_whitelist(native_ids));
         host.attach_memory_backend(context, &mut request.extensions);
         request.extensions.insert(HostExecution {
             harness: harness.clone(),

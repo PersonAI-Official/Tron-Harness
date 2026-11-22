@@ -10,14 +10,15 @@ use crate::app::AppState;
 use super::handler::{
     activate_agui_stream, create_agent_run, deactivate_agui_stream, disable_platform_system_agent,
     disable_workspace_system_agent, enable_platform_system_agent, enable_workspace_system_agent,
-    get_agent_run, get_runtime_capability, get_tool, get_workspace_internal_agent, list_agent_runs,
-    list_agui_stream_events, list_agui_stream_protocol_events, list_platform_system_agents,
-    list_runtime_capabilities, list_tool_categories, list_tool_domains, list_tools,
-    list_workspace_internal_agents, list_workspace_system_agents,
+    get_agent_run, get_native_tool_config, get_runtime_capability, get_tool,
+    get_workspace_internal_agent, list_agent_runs, list_agui_stream_events,
+    list_agui_stream_protocol_events, list_platform_system_agents, list_runtime_capabilities,
+    list_tool_categories, list_tool_domains, list_tools, list_workspace_internal_agents,
+    list_workspace_system_agents, replace_native_tool_config,
     replace_workspace_internal_agent_mcp_server_assignments,
     replace_workspace_internal_agent_tool_assignments, rescan_platform_system_agents,
-    reset_workspace_internal_agent_policy, update_workspace_internal_agent_mcp_policy,
-    update_workspace_internal_agent_policy,
+    reset_workspace_internal_agent_policy, update_agent_native_scheme,
+    update_workspace_internal_agent_mcp_policy, update_workspace_internal_agent_policy,
 };
 
 pub fn routes() -> Router<AppState> {
@@ -76,6 +77,10 @@ pub fn routes() -> Router<AppState> {
         .route("/api/v1/tools/domains", get(list_tool_domains))
         .route("/api/v1/tools/categories", get(list_tool_categories))
         .route("/api/v1/tools", get(list_tools))
+        .route(
+            "/api/v1/tools/native-schemes",
+            get(get_native_tool_config).put(replace_native_tool_config),
+        )
         .route("/api/v1/tools/{tool_code}", get(get_tool))
         .route(
             "/api/v1/agents/workspaces/{workspace_code}/internal",
@@ -104,6 +109,10 @@ pub fn routes() -> Router<AppState> {
         .route(
             "/api/v1/agents/workspaces/{workspace_code}/internal/{agent_code}/mcp-server-assignments",
             put(replace_workspace_internal_agent_mcp_server_assignments),
+        )
+        .route(
+            "/api/v1/agents/workspaces/{workspace_code}/internal/{agent_code}/native-scheme",
+            patch(update_agent_native_scheme),
         )
         .route(
             "/api/v1/agents/workspaces/{workspace_code}/internal/{agent_code}/reset-policy",

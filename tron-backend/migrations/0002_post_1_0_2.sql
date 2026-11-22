@@ -311,3 +311,12 @@ SET label = 'Chats'
 WHERE menu_id = (SELECT id FROM navigation_menus
                  WHERE menu_code = 'CHAT_RECENTS' AND source = 'BuiltIn')
   AND locale = 'en-US' AND label = 'Quick Chats';
+
+-- tron:migration:0008_native_tool_schemes
+-- Global named native-exposure schemes. Agents may select a scheme in their
+-- workspace policy; absent selection inherits default_scheme_code from this row.
+CREATE TABLE platform_native_tool_config (
+    id          INTEGER PRIMARY KEY CHECK (id = 1),
+    config_json TEXT NOT NULL,
+    updated_at  INTEGER NOT NULL
+);

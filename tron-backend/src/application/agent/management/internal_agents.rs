@@ -34,6 +34,7 @@ impl AgentManagementService {
         {
             return Err(AgentManagementError::InternalAgentNotFound);
         }
+        self.clear_agent_native_scheme(workspace_code, &definition.agent_code)?;
         Ok(())
     }
 
@@ -74,6 +75,7 @@ impl AgentManagementService {
                 .or_default()
                 .push(assignment.tool_code);
         }
+        let native_overrides = self.native_tool_config()?.agent_overrides;
         let mut policies = Vec::new();
         let assistants = self.repository().list_assistant_codes()?;
         for definition in self.internal_agent_definitions(workspace_code)? {
@@ -153,6 +155,12 @@ impl AgentManagementService {
                 ),
                 assigned_tool_count,
                 effective_tool_count,
+                native_tool_scheme_code: native_overrides
+                    .get(&super::native_tools::override_key(
+                        workspace_code,
+                        &agent_code,
+                    ))
+                    .cloned(),
             })
         }
         Ok(policies)
@@ -177,6 +185,18 @@ impl AgentManagementService {
     ) -> Result<InternalAgentToolPolicy, AgentManagementError> {
         if command.max_parallel_tool_calls == Some(0) {
             return Err(AgentManagementError::InternalAgentPolicyInvalid);
+        }
+        if let Some(code) = command.native_tool_scheme_code.as_deref() {
+            let code = code.trim();
+            if !code.is_empty()
+                && !self
+                    .native_tool_config()?
+                    .schemes
+                    .iter()
+                    .any(|scheme| scheme.code == code.to_ascii_lowercase())
+            {
+                return Err(AgentManagementError::InternalAgentPolicyInvalid);
+            }
         }
         self.validate_selected_categories(&command.selected_category_codes)?;
         if !crate::domain::computer_use::allows(agent_code)
@@ -249,6 +269,17 @@ impl AgentManagementService {
         };
         self.repository()
             .upsert_workspace_internal_agent_policy(&updated_policy)?;
+        if let Some(code) = command.native_tool_scheme_code.as_deref() {
+            self.set_agent_native_scheme(
+                workspace_code,
+                agent_code,
+                if code.trim().is_empty() {
+                    None
+                } else {
+                    Some(code)
+                },
+            )?;
+        }
         self.workspace_internal_agent_policy(workspace_code, agent_code)
     }
 
@@ -355,6 +386,7 @@ impl AgentManagementService {
             .delete_workspace_internal_agent_tool_assignments(workspace_code, agent_code)?;
         self.repository()
             .delete_workspace_internal_agent_mcp_server_assignments(workspace_code, agent_code)?;
+        self.clear_agent_native_scheme(workspace_code, agent_code)?;
         self.workspace_internal_agent_policy(workspace_code, agent_code)
     }
 

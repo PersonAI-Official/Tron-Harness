@@ -67,9 +67,25 @@ pub(crate) const NATIVE_COMMAND_TOOLS: [(&str, &str); 3] = [
     ("system.command.task.stop", "command_exec_stop"),
 ];
 
-pub(crate) fn native_tool_whitelist() -> fw::NativeToolWhitelist {
+pub(crate) fn default_native_tool_ids() -> Vec<String> {
+    NATIVE_COMMAND_TOOLS
+        .iter()
+        .map(|(id, _)| (*id).to_owned())
+        .collect()
+}
+
+pub(crate) fn native_ids_from_scheme(names: impl IntoIterator<Item = String>) -> Vec<String> {
+    names
+        .into_iter()
+        .map(|name| official_id(&name).unwrap_or(name))
+        .collect()
+}
+
+pub(crate) fn native_tool_whitelist(
+    ids: impl IntoIterator<Item = String>,
+) -> fw::NativeToolWhitelist {
     let mut whitelist = fw::NativeToolWhitelist::new();
-    for (id, _) in NATIVE_COMMAND_TOOLS {
+    for id in ids {
         whitelist.insert(id);
     }
     whitelist
