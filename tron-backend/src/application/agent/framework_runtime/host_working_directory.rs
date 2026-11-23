@@ -120,6 +120,9 @@ impl FrameworkHost {
         &self,
         sessions: Vec<(String, Option<String>)>,
     ) -> Result<StagedSessionDirectories, String> {
+        for (session, _) in &sessions {
+            self.invalidate_file_session(session).await?;
+        }
         let root = self.0.path.with_extension("workspaces");
         let directories = sessions
             .into_iter()

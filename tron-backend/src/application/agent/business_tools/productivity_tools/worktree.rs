@@ -22,9 +22,15 @@ async fn checked(
 ) -> Result<String, ToolError> {
     let result = git(directory, args, control).await?;
     if result["exitCode"] != 0 {
-        return Err(error(result["stderr"].as_str().unwrap_or("git failed")));
+        return Err(error(
+            result["stderr"]["content"].as_str().unwrap_or("git failed"),
+        ));
     }
-    if result["truncated"] == true {
+    if ["stdout", "stderr"].iter().any(|stream| {
+        result[*stream]["hasMore"].as_bool() != Some(false)
+            || result[*stream]["droppedBytes"].as_u64() != Some(0)
+            || result[*stream]["captureStatus"].as_str() != Some("eof")
+    }) {
         return Err(error(
             t!(
                 "agent_runtime.tool.worktree.git_output_too_large",
@@ -33,7 +39,7 @@ async fn checked(
             .into_owned(),
         ));
     }
-    Ok(result["stdout"]
+    Ok(result["stdout"]["content"]
         .as_str()
         .unwrap_or_default()
         .trim_end_matches(['\n', '\r'])

@@ -991,3 +991,11 @@ agent_runtime.tool.office.excel_output_extension:
 agent_runtime.tool.office.output_parent_required:
   en: "The output parent directory is required"
   zh-CN: "需要输出目录的父目录"
+
+agent_runtime.tool.command_capture.create_failed:
+  en: "Could not create command output file: %{detail}"
+  zh-CN: "无法创建命令输出文件：%{detail}"
+
+agent_runtime.tool.command_capture.publish_failed:
+  en: "Could not save command output as a session attachment: %{detail}"
+  zh-CN: "无法将命令输出保存为会话附件：%{detail}"

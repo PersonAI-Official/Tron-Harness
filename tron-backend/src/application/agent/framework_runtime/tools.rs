@@ -373,7 +373,6 @@ impl fw::ToolProvider for HarnessTools {
                     | "word_create"
                     | "word_replace_text"
                     | "excel_write"
-                    | "fs_write_text"
                     | "fs_apply_patch"
                     | "terminal_write"
             ) {

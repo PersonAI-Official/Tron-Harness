@@ -677,6 +677,7 @@ impl Runtime {
             .extensions
             .insert(super::super::tools::native_tool_whitelist(native_ids));
         host.attach_memory_backend(context, &mut request.extensions);
+        super::file_coordination::attach(&context, &session, &mut request);
         request.extensions.insert(HostExecution {
             harness: harness.clone(),
             state: Arc::new(Mutex::new(HostRunState::new(context.clone()))),
@@ -707,6 +708,11 @@ impl Runtime {
         }
         .attach(&mut request)?;
         if let Some(resources) = &host.0.resources {
+            request.extensions.insert(
+                eliteforge_agent_official_plugin_tools_local::CommandOutputCaptureService(
+                    Arc::new(CommandCapture(resources.clone())),
+                ),
+            );
             request
                 .extensions
                 .insert(FileReferenceReaderService(Arc::new(AttachmentReader(

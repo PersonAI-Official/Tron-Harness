@@ -1777,16 +1777,16 @@ agent.toolCatalog.tools.bash.exec.name:
   zh-CN: "执行命令"
 
 agent.toolCatalog.tools.bash.exec.description:
-  en: "Run a complete command string in the current authorized working directory. The host shell interprets chaining, pipes, redirections, quoting and paths with spaces; pass the entire command in command. If it is still running after 10 seconds, return its taskId and captured output. A nonzero exit code is a command result, not a tool failure. Use command_exec_read to check status and read more output, or command_exec_stop to stop it. This is not a sandbox. For elevated commands set sudo=true and supply the underlying command without sudo; the host requests passwords privately. Never request a sudo password through ask_user or include one in tool arguments. The args field is no longer accepted."
-  zh-CN: "在当前授权执行目录运行完整命令字符串；命令串联、管道、重定向、引号和含空格路径由宿主命令解释器处理，请把完整命令放在 command 中。10 秒内未结束时返回 taskId 和已捕获输出；非零退出码属于命令结果，不是工具调用失败。这不是沙箱。需要提权时设置 sudo=true 并提供不含 sudo 的实际命令，密码由宿主私密输入，不要通过 ask_user 或工具参数传递。不再接受 args。"
+  en: "Run a complete command in the authorized directory. Returns taskId and a 16KiB preview per stream, even when completed. stdout/stderr contain content, pageStartCursor, nextCursor, endCursor, hasMore, droppedBytes, captureStatus and captureError. Follow nextCursor with command_exec_read. Complete output requires continuous reads from zero, no dropped bytes, both streams at eof and no more pages. captureToFile=true saves independent session files; check fileCapture status, capturedBytes, maxBytes, fileRef and error. saved plus normal EOF and capturedBytes=endCursor establishes a complete file; empty streams have no fileRef. Commands running after 10 seconds return a task ID. Nonzero exits are command results. Shell quoting, pipes and redirection are supported; args is not accepted. For sudo=true supply the command without sudo and let the host request the password privately; never include passwords in tool arguments or ask_user. This is not a sandbox."
+  zh-CN: "在授权目录执行完整命令。即使进程已完成，也只返回 taskId 和每路默认 16KiB 预览。stdout/stderr 包含 content、pageStartCursor、nextCursor、endCursor、hasMore、droppedBytes、captureStatus 和 captureError；用 nextCursor 续读。只有从零连续读取、无丢失、两路正常 EOF 且无后续时才是完整输出。captureToFile=true 独立保存会话文件；检查 fileCapture 的状态、capturedBytes、maxBytes、fileRef 和 error。saved、正常 EOF 且 capturedBytes=endCursor 才是完整文件；空流没有 fileRef。超过 10 秒返回任务 ID。非零退出属于命令结果。支持 Shell 管道、重定向和引号，不接受 args。sudo=true 时提供不含 sudo 的命令，由宿主私密请求密码，禁止通过 ask_user 或工具参数传递密码。这不是沙箱。"
 
 agent.toolCatalog.tools.bash.task_read.name:
   en: "System Command Task Read"
   zh-CN: "读取命令输出"
 
 agent.toolCatalog.tools.bash.task_read.description:
-  en: "Read a command task's status and the next stdout/stderr bytes using the returned cursors. A short waitMs can wait for more output. Tasks are available only in the session that started them."
-  zh-CN: "读取当前会话中命令任务的状态和最新输出，可短暂等待。"
+  en: "Read command previews, including after completion. Pass stdout.nextCursor and stderr.nextCursor as stdoutCursor and stderrCursor. hasMore indicates remaining captured bytes; droppedBytes indicates a gap; captureStatus=eof indicates normal stream completion. All pages from zero must have no gap to establish complete output. waitMs can wait briefly for more output. Tasks belong to the originating session."
+  zh-CN: "读取命令预览，包括已完成的命令。将 stdout.nextCursor、stderr.nextCursor 分别作为 stdoutCursor、stderrCursor 续读。hasMore 表示还有已采集内容，droppedBytes 表示缺口，captureStatus=eof 表示正常采集结束。只有从零连续读取且所有页无缺口才能认定输出完整。waitMs 可短暂等待。仅允许读取当前会话的任务。"
 
 agent.toolCatalog.tools.bash.task_stop.name:
   en: "System Command Task Stop"
@@ -1801,24 +1801,24 @@ agent.toolCatalog.tools.fs.read_text.name:
   zh-CN: "读取文件"
 
 agent.toolCatalog.tools.fs.read_text.description:
-  en: "Read UTF-8 text from a file below the configured filesystem root."
-  zh-CN: "读取授权目录中的文本文件或会话附件，可指定行范围。"
+  en: "Batch-read UTF-8 files or selected ranges. The host records actual returned content for safe editing. Attachments do not grant workspace edit credentials."
+  zh-CN: "批量读取授权目录中的文本文件，可指定行范围；宿主记录实际返回内容的版本与读取范围。会话附件不授予工作区编辑凭证。"
 
 agent.toolCatalog.tools.fs.write_text.name:
   en: "File Write Text"
   zh-CN: "写入文件"
 
 agent.toolCatalog.tools.fs.write_text.description:
-  en: "Create, overwrite, or append UTF-8 text below the configured filesystem root. Single-file operation: pass path and content directly, without an items array. Use separate calls for separate files."
-  zh-CN: "在授权目录中创建文件或写入文本，可校验文件版本。"
+  en: "Use items to batch independent file creations, complete overwrites or appends. mode is required. Overwrite needs a complete current read; prefer fs_apply_patch for local or related multi-file changes."
+  zh-CN: "通过 items 批量创建、完整覆盖或追加文件，必须指定 mode。创建要求目标不存在，覆盖要求完整且未过期的读取基线，追加写入最新内容。局部修改优先使用 fs_apply_patch。"
 
 agent.toolCatalog.tools.fs.apply_patch.name:
   en: "File Patch"
   zh-CN: "编辑文件"
 
 agent.toolCatalog.tools.fs.apply_patch.description:
-  en: "Edit UTF-8 text using path/action/target, or a *** Begin Patch envelope to add/update/delete/move multiple files. Ambiguous contexts are rejected. dryRun previews envelopes without writing."
-  zh-CN: "替换、删除或插入文件中的指定文本，可校验匹配次数和文件版本。"
+  en: "Use mode=text for exact targeted replacement or mode=patch for related multi-file add/update/delete/move operations. Read old context first. Unrelated concurrent edits are preserved when exact context still matches. No version fields."
+  zh-CN: "mode=text 精确替换已读取的文本；mode=patch 使用 Begin Patch 一次修改多个关联文件。上下文唯一匹配时保留其他代理的无关修改；歧义或真实冲突会拒绝。dryRun 仅预览补丁。无需传版本号。"
 
 agent.toolCatalog.tools.fs.list.name:
   en: "File List"

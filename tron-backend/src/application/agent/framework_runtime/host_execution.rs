@@ -328,6 +328,7 @@ impl FrameworkHost {
                         .unwrap_or_else(|| "main-agent".into()),
                 });
         }
+        super::file_coordination::attach(&context, &session, &mut request);
         request.run_id = Some(fw::RunId::parse_str(&context.run_code).map_err(|e| {
             AgentError::InvalidConfiguration(format!("invalid native run identity: {e}"))
         })?);
@@ -488,6 +489,11 @@ impl FrameworkHost {
                 });
         }
         if let Some(resources) = &self.0.resources {
+            request.extensions.insert(
+                eliteforge_agent_official_plugin_tools_local::CommandOutputCaptureService(
+                    Arc::new(CommandCapture(resources.clone())),
+                ),
+            );
             request
                 .extensions
                 .insert(FileReferenceReaderService(Arc::new(AttachmentReader(

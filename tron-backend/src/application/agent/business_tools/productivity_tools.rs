@@ -296,8 +296,5 @@ async fn run(
                 .unwrap_or("command did not complete"),
         ));
     }
-    Ok(
-        json!({ "cwd": directory, "exitCode": output["exitCode"], "stdout": output["stdout"], "stderr": output["stderr"],
-        "truncated": output["stdoutTruncated"].as_bool().unwrap_or(false) || output["stderrTruncated"].as_bool().unwrap_or(false) }),
-    )
+    Ok(output)
 }

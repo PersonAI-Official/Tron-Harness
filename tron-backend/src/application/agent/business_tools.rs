@@ -128,12 +128,17 @@ pub(crate) fn framework_local_scope(
             .map(|root| coding_tools::expand_tilde(root))
             .collect()
     };
-    Ok(
-        eliteforge_agent_official_plugin_tools_local::FileSystemToolsConfig::new(cwd)
-            .with_authorized_roots(roots)
-            .with_authorized_symlinks(true)
-            .with_max_edit_bytes(32 * 1024 * 1024),
-    )
+    let mut config = eliteforge_agent_official_plugin_tools_local::FileSystemToolsConfig::new(cwd)
+        .with_authorized_roots(roots.clone())
+        .with_authorized_symlinks(true)
+        .with_max_edit_bytes(32 * 1024 * 1024);
+    // Local mounts use their canonical root as workspace identity. A future
+    // distributed pack must replace these with deployment-stable mount IDs.
+    for root in roots {
+        let canonical = std::fs::canonicalize(&root).map_err(|error| crate::domain::agent::ToolError::ExecutionFailed(error.to_string()))?;
+        config = config.with_coordination_root(&canonical, "tron.local", canonical.to_string_lossy().into_owned());
+    }
+    Ok(config)
 }
 
 pub(crate) fn framework_file_reference(

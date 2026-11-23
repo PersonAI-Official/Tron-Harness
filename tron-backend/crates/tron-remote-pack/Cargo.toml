@@ -6,8 +6,8 @@ license = "AGPL-3.0-only"
 publish = false
 
 [dependencies]
-eliteforge-agent-remote-protocol = { git = "https://gitee.com/person-ai/eliteforge-agent-framework.git", tag = "1.0.0" }
-eliteforge-agent-remote-rpc = { git = "https://gitee.com/person-ai/eliteforge-agent-framework.git", tag = "1.0.0" }
+eliteforge-agent-remote-protocol = { git = "https://gitee.com/person-ai/eliteforge-agent-framework.git", rev = "e507613729c76bfe8026ed6bb57ec2ca5c0d30c4" }
+eliteforge-agent-remote-rpc = { git = "https://gitee.com/person-ai/eliteforge-agent-framework.git", rev = "e507613729c76bfe8026ed6bb57ec2ca5c0d30c4" }
 async-trait = "0.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

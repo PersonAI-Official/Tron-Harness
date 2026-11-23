@@ -1,4 +1,6 @@
 use super::runtime_count_limit;
+#[path = "command_capture.rs"]
+mod command_capture;
 use super::{
     context::TronContext,
     model::{HostExecution, HostRunState},
@@ -6,6 +8,7 @@ use super::{
 };
 use crate::application::agent::{ActiveRunControl, ModelStreamSink, runtime::ReactAgent};
 use crate::domain::agent::{AgentError, AgentRunContext, AgentRunResult};
+use command_capture::CommandCapture;
 use eliteforge_agent_core as fw;
 use eliteforge_agent_framework::{Agent, AgentSelection, Framework};
 
@@ -74,6 +77,8 @@ mod host_snapshot;
 mod host_storage;
 #[path = "host_summary.rs"]
 mod host_summary;
+#[path = "host_file_coordination.rs"]
+mod file_coordination;
 #[path = "host_working_directory.rs"]
 mod host_working_directory;
 #[path = "host_remote_tools.rs"]

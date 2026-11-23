@@ -646,6 +646,9 @@ impl AgentCollaborationRuntime for Runtime {
         }
         let host = self.host()?;
         let mut record = thread.state.lock().unwrap().record.clone();
+        host.invalidate_file_session(id)
+            .await
+            .map_err(fw::AgentError::Run)?;
         record.closed = true;
         host.persist_thread(&mut record, false).await?;
         thread.state.lock().unwrap().record = record;
