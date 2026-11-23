@@ -283,6 +283,8 @@ pub struct KnowledgeBaseContext {
     pub text: String,
     pub source_version: String,
     pub hits: Vec<KnowledgeBaseHit>,
+    /// Locale-independent structured warnings from the retrieval stage.
+    pub warnings: Vec<String>,
 }
 #[derive(Clone)]
 pub struct KnowledgeBaseService {
@@ -1340,6 +1342,7 @@ impl KnowledgeBaseService {
                 text: String::new(),
                 source_version: String::new(),
                 hits: vec![],
+                warnings: vec![],
             });
         }
         let mut hits = vec![];
@@ -1349,6 +1352,7 @@ impl KnowledgeBaseService {
                 text: String::new(),
                 source_version: String::new(),
                 hits: vec![],
+                warnings: vec![],
             });
         }
         let result = self
@@ -1421,9 +1425,6 @@ impl KnowledgeBaseService {
         let mut remaining = token_budget.saturating_mul(4);
         let mut selected = vec![];
         let mut text = String::new();
-        for warning in retrieval_warnings {
-            text.push_str(&format!("[检索提示: {warning}]\n"));
-        }
         for mut hit in hits.into_iter().take(8) {
             if remaining < 32 {
                 break;
@@ -1474,6 +1475,7 @@ impl KnowledgeBaseService {
                 ))
             },
             hits: selected,
+            warnings: retrieval_warnings,
         })
     }
 }

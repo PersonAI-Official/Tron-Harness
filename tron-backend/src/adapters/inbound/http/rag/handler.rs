@@ -177,7 +177,11 @@ pub async fn search(
         )
         .await
     {
-        Ok(result) => Json(ApiResponse::success(SearchResponse::from(result))).into_response(),
+        Ok(result) => Json(ApiResponse::success(SearchResponse::from_result(
+            result,
+            &auth.locale,
+        )))
+        .into_response(),
         Err(error) => rag_error_response(error, &auth.locale),
     }
 }
@@ -200,7 +204,11 @@ pub async fn recall(
         )
         .await
     {
-        Ok(result) => Json(ApiResponse::success(RecallResponse::from(result))).into_response(),
+        Ok(result) => Json(ApiResponse::success(RecallResponse::from_result(
+            result,
+            &auth.locale,
+        )))
+        .into_response(),
         Err(error) => rag_error_response(error, &auth.locale),
     }
 }

@@ -470,14 +470,16 @@ where
                     rerank_error = Some(error);
                 }
                 Err(error) => {
-                    result.warnings.push(
-                        crate::shared::i18n_message::MessageText::new(
-                            "rag.search.rerank_failed_fallback",
-                        )
-                        .arg("detail", error.to_string())
-                        .encode(),
-                    );
-                    rerank_error = Some(error);
+                    // Provider diagnostics stay in server logs. The response
+                    // carries a stable message so the UI never renders raw SDK
+                    // payloads, credentials metadata or upstream HTML.
+                    tracing::warn!(error = %error, "rerank stage failed; keeping fused fallback order");
+                    let message = crate::shared::i18n_message::MessageText::new(
+                        "rag.search.rerank_unavailable_fallback",
+                    )
+                    .encode();
+                    result.warnings.push(message.clone());
+                    rerank_error = Some(message);
                 }
             }
             result.stages.push(RagRetrievalStage {

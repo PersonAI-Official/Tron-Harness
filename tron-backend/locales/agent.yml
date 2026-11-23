@@ -436,6 +436,10 @@ agent_runtime.context.knowledge.visual_evidence_unloaded:
   en: "[Visual evidence was not loaded: %{warning}]"
   zh-CN: "[视觉证据未载入: %{warning}]"
 
+agent_runtime.context.knowledge.retrieval_warning:
+  en: "[Knowledge-base retrieval notice: %{warning}]"
+  zh-CN: "[知识库检索提示：%{warning}]"
+
 agent_runtime.context.memory.retrieval_failed:
   en: "[Long-term memory retrieval failed; no memory evidence is available.]"
   zh-CN: "[长期记忆检索失败，本轮没有可用记忆证据。]"

@@ -1425,9 +1425,17 @@ rag.search.rerank_invalid_fallback:
   en: "The reranker returned invalid results; fallback recall filters were applied"
   zh-CN: "重排返回无效结果，已按召回阈值降级筛选"
 
-rag.search.rerank_failed_fallback:
-  en: "Reranking failed (%{detail}); fallback recall filters were applied"
-  zh-CN: "重排失败（%{detail}），已按召回阈值降级筛选"
+rag.search.rerank_unavailable_fallback:
+  en: "Reranking is temporarily unavailable; results were filtered by the fallback recall threshold"
+  zh-CN: "重排服务暂时不可用，已按召回阈值降级筛选"
+
+rag.search.warning_unavailable:
+  en: "Retrieval completed with a limitation"
+  zh-CN: "检索已完成，但存在限制"
+
+rag.search.stage_failure_unavailable:
+  en: "This retrieval stage did not complete; results from other stages were kept"
+  zh-CN: "该检索环节未完成，已保留其他环节结果"
 
 rag.search.graph_scope_changed:
   en: "The graph authorization or publication snapshot changed; related graph context was removed"

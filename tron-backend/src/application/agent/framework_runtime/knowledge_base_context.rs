@@ -63,6 +63,19 @@ impl fw::ContextContributor for KnowledgeBaseContributor {
                 return Ok(block);
             }
         };
+        // Retrieval warnings are locale-independent structured messages.
+        // Render them here, where the run locale is known.
+        for warning in &context.warnings {
+            block.messages.push(fw::Message::user(t!(
+                "agent_runtime.context.knowledge.retrieval_warning",
+                locale = locale,
+                warning = crate::shared::i18n_message::render_stored(
+                    warning,
+                    locale.as_str(),
+                    Some("rag.search.warning_unavailable")
+                )
+            )));
+        }
         {
             let visual = match service.visual_evidence_for_agent(
                 user,
