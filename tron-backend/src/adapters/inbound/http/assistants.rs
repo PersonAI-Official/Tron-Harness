@@ -136,6 +136,7 @@ macro_rules! assistant_response {
             max_parallel_tool_calls: u32,
             selected_tool_codes: Vec<String>,
             selected_server_codes: Vec<String>,
+            native_tool_scheme_code: Option<String>,
         }
         impl $name {
             fn from_record(
@@ -166,6 +167,7 @@ macro_rules! assistant_response {
                     max_parallel_tool_calls: p.max_parallel_tool_calls,
                     selected_tool_codes: p.selected_tool_codes,
                     selected_server_codes: p.selected_server_codes,
+                    native_tool_scheme_code: p.native_tool_scheme_code,
                 })
             }
         }

@@ -187,16 +187,7 @@ impl AgentManagementService {
             return Err(AgentManagementError::InternalAgentPolicyInvalid);
         }
         if let Some(code) = command.native_tool_scheme_code.as_deref() {
-            let code = code.trim();
-            if !code.is_empty()
-                && !self
-                    .native_tool_config()?
-                    .schemes
-                    .iter()
-                    .any(|scheme| scheme.code == code.to_ascii_lowercase())
-            {
-                return Err(AgentManagementError::InternalAgentPolicyInvalid);
-            }
+            self.validate_native_scheme(code)?;
         }
         self.validate_selected_categories(&command.selected_category_codes)?;
         if !crate::domain::computer_use::allows(agent_code)

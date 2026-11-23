@@ -94,6 +94,9 @@ pub struct PlatformInternalAgentConfig {
     pub max_parallel_tool_calls: u32,
     pub selected_tool_codes: Vec<String>,
     pub selected_server_codes: Vec<String>,
+    /// Named native-exposure scheme; absent inherits the global default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub native_tool_scheme_code: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

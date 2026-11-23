@@ -119,6 +119,25 @@ impl AgentManagementService {
         let json =
             serde_json::to_string(&config).map_err(|_| AgentManagementError::StorageFailure)?;
         self.repository().replace_native_tool_config(&json)?;
+        // Platform definitions (including PersonAI) reference schemes by code,
+        // so a deletion must not leave an editor pointing at a missing scheme.
+        let codes = config
+            .schemes
+            .iter()
+            .map(|scheme| scheme.code.as_str())
+            .collect::<std::collections::BTreeSet<_>>();
+        let mut repository = self.repository();
+        for mut definition in repository.list_platform_internal_agent_configs()? {
+            if definition
+                .native_tool_scheme_code
+                .as_deref()
+                .is_some_and(|code| !codes.contains(code))
+            {
+                definition.native_tool_scheme_code = None;
+                repository.upsert_platform_internal_agent_config(&definition)?;
+            }
+        }
+        drop(repository);
         Ok(config)
     }
 
@@ -132,6 +151,26 @@ impl AgentManagementService {
             .agent_overrides
             .get(&override_key(workspace_code, agent_code))
             .cloned())
+    }
+
+    /// Rejects names that do not exist; an empty value clears the selection and
+    /// therefore inherits the global default.
+    pub(super) fn validate_native_scheme(
+        &self,
+        scheme_code: &str,
+    ) -> Result<(), AgentManagementError> {
+        let code = scheme_code.trim().to_ascii_lowercase();
+        if code.is_empty()
+            || self
+                .native_tool_config()?
+                .schemes
+                .iter()
+                .any(|scheme| scheme.code == code)
+        {
+            Ok(())
+        } else {
+            Err(AgentManagementError::InternalAgentPolicyInvalid)
+        }
     }
 
     pub fn set_agent_native_scheme(
@@ -183,10 +222,24 @@ impl AgentManagementService {
         agent_code: &str,
     ) -> Result<Vec<String>, AgentManagementError> {
         let config = self.native_tool_config()?;
-        let selected = config
-            .agent_overrides
-            .get(&override_key(workspace_code, agent_code))
-            .cloned()
+        // PersonAI definitions are platform-scoped: their saved policy applies
+        // in every workspace, so a workspace override never shadows it.
+        let definition_scheme =
+            if workspace_code.trim().is_empty() || self.is_assistant_definition(agent_code)? {
+                self.platform_internal_agent_configs()?
+                    .into_iter()
+                    .find(|definition| definition.agent_code.eq_ignore_ascii_case(agent_code))
+                    .and_then(|definition| definition.native_tool_scheme_code)
+            } else {
+                None
+            };
+        let selected = definition_scheme
+            .or_else(|| {
+                config
+                    .agent_overrides
+                    .get(&override_key(workspace_code, agent_code))
+                    .cloned()
+            })
             .unwrap_or_else(|| config.default_scheme_code.clone());
         let scheme = config
             .schemes

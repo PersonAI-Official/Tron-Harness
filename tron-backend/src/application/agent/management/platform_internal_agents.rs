@@ -265,6 +265,9 @@ impl AgentManagementService {
         if command.max_parallel_tool_calls == Some(0) {
             return Err(AgentManagementError::InternalAgentPolicyInvalid);
         }
+        if let Some(code) = command.native_tool_scheme_code.as_deref() {
+            self.validate_native_scheme(code)?;
+        }
         self.change_platform_internal_agent(code, |config| {
             if let Some(value) = command.selected_category_codes {
                 config.selected_category_codes = normalize_string_codes(value);
@@ -280,6 +283,10 @@ impl AgentManagementService {
             }
             if let Some(value) = command.max_parallel_tool_calls {
                 config.max_parallel_tool_calls = value;
+            }
+            if let Some(value) = command.native_tool_scheme_code {
+                let scheme = value.trim().to_ascii_lowercase();
+                config.native_tool_scheme_code = (!scheme.is_empty()).then_some(scheme);
             }
             Ok(())
         })
@@ -388,7 +395,7 @@ fn platform_view(
         selected_server_codes: config.selected_server_codes,
         assigned_tool_count: count,
         effective_tool_count: count,
-        native_tool_scheme_code: None,
+        native_tool_scheme_code: config.native_tool_scheme_code,
     }
 }
 
@@ -426,5 +433,6 @@ fn default_config(
         max_parallel_tool_calls: definition.max_parallel_tool_calls,
         selected_tool_codes: definition.selected_tool_codes,
         selected_server_codes: definition.selected_server_codes,
+        native_tool_scheme_code: None,
     }
 }

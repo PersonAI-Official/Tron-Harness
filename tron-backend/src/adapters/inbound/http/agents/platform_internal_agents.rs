@@ -85,6 +85,7 @@ pub struct PlatformInternalAgentView {
     selected_server_codes: Vec<String>,
     assigned_tool_count: usize,
     effective_tool_count: usize,
+    native_tool_scheme_code: Option<String>,
 }
 impl From<InternalAgentToolPolicy> for PlatformInternalAgentView {
     fn from(record: InternalAgentToolPolicy) -> Self {
@@ -111,6 +112,7 @@ impl From<InternalAgentToolPolicy> for PlatformInternalAgentView {
             selected_server_codes: record.selected_server_codes,
             assigned_tool_count: record.assigned_tool_count,
             effective_tool_count: record.effective_tool_count,
+            native_tool_scheme_code: record.native_tool_scheme_code,
         }
     }
 }
@@ -139,6 +141,7 @@ endpoint_response!(
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct UpdatePlatformInternalAgentPolicyRequest {
     tool_assignment_mode: Option<String>,
+    native_tool_scheme_code: Option<String>,
     selected_category_codes: Option<Vec<String>>,
     max_steps: Option<u32>,
     max_tool_calls: Option<u32>,
@@ -235,7 +238,7 @@ pub async fn update_platform_internal_agent_policy(
             max_steps: request.max_steps,
             max_tool_calls: request.max_tool_calls,
             max_parallel_tool_calls: request.max_parallel_tool_calls,
-            native_tool_scheme_code: None,
+            native_tool_scheme_code: request.native_tool_scheme_code,
         }) {
             Ok(command) => command,
             Err(_) => {

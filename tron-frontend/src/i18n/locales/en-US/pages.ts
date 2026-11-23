@@ -3165,6 +3165,15 @@ export const pages = {
             "Selected tools: assign only the specific tools you choose below.",
           optionThree: "All read-only tools: automatically select tools declared as queries each run. Mutating and unknown tools are excluded. Declarations do not enforce execution isolation.",
         },
+        nativeToolSchemeCode: {
+          ariaLabel: "Explain tool exposure scheme",
+          summary:
+            "Chooses which tools are exposed directly to the model for this agent's runs. Tools outside the scheme stay discoverable through tool_search.",
+          optionOne:
+            "Use global default: follow the default scheme set in Settings > Platform tools > Tool exposure.",
+          optionTwo:
+            "A named scheme only changes direct exposure. Tool assignment, MCP servers and platform permissions still apply and are never widened.",
+        },
         maxSteps: {
           ariaLabel: "About maximum run turns",
           summary: "Limits model turns per run. Unlimited by default.",
@@ -3193,8 +3202,12 @@ export const pages = {
         maxToolCalls: "Max total tool calls",
         maxParallelToolCalls: "Max parallel tool calls",
         mcpAccessMode: "MCP access mode",
+        nativeToolSchemeCode: "Tool exposure scheme",
         toolCategories: "Tool categories (multiple selections)",
         toolAssignmentMode: "Tool assignment mode",
+      },
+      nativeScheme: {
+        inherit: "Use global default",
       },
       messages: {
         reset: "Internal agent policy reset",

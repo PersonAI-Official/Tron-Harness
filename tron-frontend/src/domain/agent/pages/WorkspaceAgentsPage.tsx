@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 import {
   fetchToolDomains,
   fetchWorkspaceInternalAgents,
+  getNativeToolConfig,
   deleteWorkspaceInternalAgent,
   fetchWorkspaceSystemAgents,
   listTools,
@@ -45,6 +46,7 @@ import {
   enableWorkspaceSystemAgent,
 } from "@/domain/agent/api";
 import type {
+  NativeToolSchemeRecord,
   PlatformToolRecord,
   ToolCatalogDomainRecord,
   WorkspaceInternalAgentMcpPolicyPayload,
@@ -130,6 +132,7 @@ interface InternalAgentDraft {
   selectedToolCodes: string[];
   toolAssignmentMode: WorkspaceInternalAgentRecord["toolAssignmentMode"];
   selectedCategoryCodes?: string[];
+  nativeToolSchemeCode?: string | null;
 }
 
 type InternalSaveState = "idle" | "pending" | "saving" | "saved" | "error";
@@ -194,6 +197,7 @@ function draftFromRecord(
     selectedToolCodes: normalizeToolCodes(record.selectedToolCodes),
     toolAssignmentMode: record.toolAssignmentMode,
     selectedCategoryCodes: record.selectedCategoryCodes ?? [],
+    nativeToolSchemeCode: record.nativeToolSchemeCode ?? "",
   };
 }
 
@@ -234,6 +238,7 @@ function hasDraftChanges(
     record.maxToolCalls !== draft.maxToolCalls ||
     record.maxParallelToolCalls !== draft.maxParallelToolCalls ||
     record.mcpAccessMode !== draft.mcpAccessMode ||
+    (record.nativeToolSchemeCode ?? "") !== (draft.nativeToolSchemeCode ?? "") ||
     !hasSameServerCodes(
       normalizeServerCodes(record.selectedServerCodes),
       normalizeServerCodes(draft.selectedServerCodes)
@@ -318,6 +323,7 @@ export function WorkspaceAgentsPage({
   >([]);
   const [toolDomains, setToolDomains] = useState<ToolCatalogDomainRecord[]>([]);
   const [tools, setTools] = useState<PlatformToolRecord[]>([]);
+  const [nativeSchemes, setNativeSchemes] = useState<NativeToolSchemeRecord[]>([]);
   const [workspaceMcpServers, setWorkspaceMcpServers] = useState<
     WorkspaceMcpServerRecord[]
   >([]);
@@ -565,6 +571,7 @@ export function WorkspaceAgentsPage({
       setInternalAgents([]);
       setToolDomains([]);
       setTools([]);
+      setNativeSchemes([]);
       setWorkspaceMcpServers([]);
       setSystemAgents([]);
       internalDraftsRef.current = {};
@@ -582,6 +589,7 @@ export function WorkspaceAgentsPage({
           nextInternalAgents,
           nextToolDomains,
           nextTools,
+          nextNativeSchemes,
           nextWorkspaceMcpServers,
         ] = await Promise.all([
           dataSource === "api"
@@ -593,6 +601,9 @@ export function WorkspaceAgentsPage({
             ? fetchToolDomains()
             : Promise.resolve(listToolDomainsMock()),
           dataSource === "api" ? listTools() : Promise.resolve(listToolsMock()),
+          dataSource === "api"
+            ? getNativeToolConfig()
+            : Promise.resolve({ schemes: [], defaultSchemeCode: "default", agentOverrides: {} }),
           scope === "platform"
             ? (mcpDataSource === "api"
                 ? fetchPlatformMcpServers()
@@ -616,6 +627,7 @@ export function WorkspaceAgentsPage({
         setInternalAgents(nextInternalAgents);
         setToolDomains(nextToolDomains);
         setTools(nextTools);
+        setNativeSchemes(nextNativeSchemes.schemes ?? []);
         setWorkspaceMcpServers(nextWorkspaceMcpServers);
         if (preserveDrafts) {
           const nextDrafts = Object.fromEntries(
@@ -837,6 +849,9 @@ export function WorkspaceAgentsPage({
     }
     if (row.maxParallelToolCalls !== draft.maxParallelToolCalls) {
       payload.maxParallelToolCalls = draft.maxParallelToolCalls;
+    }
+    if ((row.nativeToolSchemeCode ?? "") !== (draft.nativeToolSchemeCode ?? "")) {
+      payload.nativeToolSchemeCode = draft.nativeToolSchemeCode ?? "";
     }
     const mcpPayload: WorkspaceInternalAgentMcpPolicyPayload = {};
     if (row.mcpAccessMode !== draft.mcpAccessMode) {
@@ -1465,14 +1480,14 @@ export function WorkspaceAgentsPage({
                                   <InternalAgentRuntimeFields workspaceCode={activeWorkspaceCode} candidateModelCodes={draft.candidateModelCodes} disabled={editingDisabled} onChange={(change) => setInternalDraft(agent.agentCode, change)} />
                                 </TabsContent>
                                 <TabsContent value="resources" keepMounted className="tron-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto px-1 py-3">
-                                  <AgentPolicyFields tools={tools} panel="resources" draft={draft} disabled={resourceEditingDisabled} onChange={(change) => setInternalDraft(agent.agentCode, change)} onAssignment={(kind) => openAssignmentDialog(agent.agentCode, kind)}>
+                                  <AgentPolicyFields tools={tools} nativeSchemes={nativeSchemes} panel="resources" draft={draft} disabled={resourceEditingDisabled} onChange={(change) => setInternalDraft(agent.agentCode, change)} onAssignment={(kind) => openAssignmentDialog(agent.agentCode, kind)}>
                                     <InternalAgentSkillField agentCode={agent.agentCode} disabled={resourceEditingDisabled} selectedNames={skillDrafts[agent.agentCode]} onSelectionChange={(names) => setSkillDrafts((current) => ({ ...current, [agent.agentCode]: names }))} />
                                     <InternalAgentKnowledgeField key={`${activeWorkspaceCode}:${agent.agentCode}:knowledge`} agentCode={agent.agentCode} agentName={translateInternalAgentName(t, { ...agent, name: draft.name })} disabled={editingDisabled} selectedIds={knowledgeDrafts[agent.agentCode]}
                                       onSelectionChange={!agent.builtIn || scope === "platform" ? (ids) => setKnowledgeDrafts((current) => ({ ...current, [agent.agentCode]: ids })) : undefined} />
                                   </AgentPolicyFields>
                                 </TabsContent>
                                 <TabsContent value="advanced" keepMounted className="tron-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto px-1 py-3">
-                                  <AgentPolicyFields panel="advanced" draft={draft} disabled={editingDisabled} onChange={(change) => setInternalDraft(agent.agentCode, change)} />
+                                  <AgentPolicyFields panel="advanced" nativeSchemes={nativeSchemes} draft={draft} disabled={editingDisabled} onChange={(change) => setInternalDraft(agent.agentCode, change)} />
                                 </TabsContent>
 
                               {assignmentDialog?.workspaceCode ===

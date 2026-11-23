@@ -3074,6 +3074,15 @@ export const pages = {
           optionTwo: "指定工具：只分配你在下方明确勾选的工具。",
           optionThree: "所有只读工具：每次运行自动选择明确声明为查询的工具；修改和未知工具不加入。此声明不代表执行隔离。",
         },
+        nativeToolSchemeCode: {
+          ariaLabel: "解释工具暴露方案",
+          summary:
+            "选择本次运行直接暴露给模型的工具集合；未加入方案的工具仍可通过 tool_search 发现。",
+          optionOne:
+            "使用全局默认：跟随“设置 > 平台工具 > 工具暴露方式”中设定的默认方案。",
+          optionTwo:
+            "指定方案只改变直接暴露的工具；工具分配、MCP 服务和平台权限仍然生效，不会扩大权限。",
+        },
         maxSteps: {
           ariaLabel: "解释最大运行轮次",
           summary: "限制每次运行的模型交互轮次，默认不限制。",
@@ -3101,8 +3110,12 @@ export const pages = {
         maxToolCalls: "最大总工具调用数",
         maxParallelToolCalls: "最大并行工具调用数",
         mcpAccessMode: "MCP 访问模式",
+        nativeToolSchemeCode: "工具暴露方案",
         toolCategories: "工具分类（可多选）",
         toolAssignmentMode: "工具分配模式",
+      },
+      nativeScheme: {
+        inherit: "使用全局默认",
       },
       messages: {
         reset: "内部智能体策略已重置",
