@@ -42,12 +42,12 @@
     "@fontsource-variable/geist": "^5.2.9",
     "@fontsource-variable/inter": "^5.2.8",
     "@lezer/highlight": "^1.2.0",
-    "@personai/agent-ui-chat-core": "1.0.0-preview.29",
-    "@personai/agent-ui-chat-react": "1.0.0-preview.29",
-    "@personai/agent-ui-chat-theme": "1.0.0-preview.29",
-    "@personai/agent-ui-composer-react": "1.0.0-preview.29",
-    "@personai/agent-ui-motion-react": "1.0.0-preview.29",
-    "@personai/agent-ui-terminal": "1.0.0-preview.29",
+    "@personai/agent-ui-chat-core": "1.0.0-preview.31",
+    "@personai/agent-ui-chat-react": "1.0.0-preview.31",
+    "@personai/agent-ui-chat-theme": "1.0.0-preview.31",
+    "@personai/agent-ui-composer-react": "1.0.0-preview.31",
+    "@personai/agent-ui-motion-react": "1.0.0-preview.31",
+    "@personai/agent-ui-terminal": "1.0.0-preview.31",
     "@radix-ui/react-slot": "^1.2.3",
     "@tanstack/react-query": "^5.101.4",
     "@tanstack/react-table": "^8.21.3",
@@ -102,6 +102,6 @@
     "vite-plugin-dts": "^4.5.4"
   },
   "allowScripts": {
-    "@personai/agent-ui-terminal@1.0.0-preview.29": true
+    "@personai/agent-ui-terminal@1.0.0-preview.31": true
   }
 }
