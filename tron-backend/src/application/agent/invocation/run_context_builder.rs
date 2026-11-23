@@ -127,7 +127,7 @@ fn invocation_locale(request_locale: Option<&str>) -> String {
 /// The catalog records the run actually authorized. The whole workspace catalog
 /// is narrowed to the run's authorized tool names so a domain the agent cannot
 /// use never reaches the model, and the visible list stays stable for the run.
-fn authorized_domain_records(
+pub(crate) fn authorized_domain_records(
     management: &AgentManagementService,
     authorized_tools: &[EffectiveTool],
     locale: &str,
@@ -172,7 +172,9 @@ fn authorized_domain_records(
 }
 
 /// Authorized inventory is data, kept separate from stable gateway instructions.
-fn visible_domain_context(domains: &[crate::domain::agent::ToolDomainRecord]) -> AgentMessage {
+pub(crate) fn visible_domain_context(
+    domains: &[crate::domain::agent::ToolDomainRecord],
+) -> AgentMessage {
     AgentMessage::new(
         "user",
         vec![crate::domain::agent::AgentMessagePart::Context {

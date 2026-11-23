@@ -30,7 +30,9 @@ use super::{
     ModelClient, ModelStreamSink,
 };
 use helpers::safe_preview;
-pub(crate) use run_context_builder::{AgentRunContextBuilder, PreparedAgentRun};
+pub(crate) use run_context_builder::{
+    AgentRunContextBuilder, PreparedAgentRun, authorized_domain_records, visible_domain_context,
+};
 #[derive(Clone)]
 pub struct AgentInvocationService {
     tool_execution_mode: crate::domain::agent::ToolExecutionMode,

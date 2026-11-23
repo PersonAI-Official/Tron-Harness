@@ -353,6 +353,38 @@ impl fw::ToolPolicy for ToolCatalogPolicy {
                 .tools
                 .retain(|t| !denied.contains(&t.tool_name));
         }
+        // The initial inventory is assembled before provider leases. Replace it
+        // with the same admitted, exposed bindings used by gateway discovery.
+        if let Some(management) = &self.management {
+            let admitted = bindings
+                .iter()
+                .filter(|b| b.exposed)
+                .map(|b| b.descriptor.call_name.as_str())
+                .collect::<std::collections::HashSet<_>>();
+            let tools = state
+                .context
+                .authorized_tools()
+                .iter()
+                .filter(|tool| admitted.contains(tool.tool_name.as_str()))
+                .cloned()
+                .collect::<Vec<_>>();
+            let records = crate::application::agent::invocation::authorized_domain_records(
+                management,
+                &tools,
+                &state.context.locale,
+            );
+            let domains = crate::application::agent::BusinessToolCatalog::domains_for_records(
+                &records,
+                &state.context.locale,
+            );
+            for message in &mut state.trusted_prefix {
+                if message.parts.iter().any(|part| matches!(part,
+                    crate::domain::agent::AgentMessagePart::Context { kind, text, .. }
+                    if kind == "tool_domains" && serde_json::from_str::<Vec<crate::domain::agent::ToolDomainRecord>>(text).is_ok())) {
+                    *message = crate::application::agent::invocation::visible_domain_context(&domains);
+                }
+            }
+        }
         state.tool_catalog = bindings
             .iter()
             .map(|binding| {

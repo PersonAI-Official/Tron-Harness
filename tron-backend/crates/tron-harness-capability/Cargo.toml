@@ -11,11 +11,11 @@ publish = false
 
 [dependencies]
 async-trait = "0.1"
-eliteforge-agent-core = { git = "https://gitee.com/person-ai/eliteforge-agent-framework.git", rev = "e507613729c76bfe8026ed6bb57ec2ca5c0d30c4" }
-eliteforge-agent-official-plugin-tools-local = { git = "https://gitee.com/person-ai/eliteforge-agent-framework.git", rev = "e507613729c76bfe8026ed6bb57ec2ca5c0d30c4" }
+eliteforge-agent-core = { git = "https://gitee.com/person-ai/eliteforge-agent-framework.git", tag = "1.0.0" }
+eliteforge-agent-official-plugin-tools-local = { git = "https://gitee.com/person-ai/eliteforge-agent-framework.git", tag = "1.0.0" }
 serde_json = "1"
 serde = { version = "1", features = ["derive"] }
 tron-i18n = { path = "../i18n" }
 
 [build-dependencies]
-eliteforge-agent-core = { git = "https://gitee.com/person-ai/eliteforge-agent-framework.git", rev = "e507613729c76bfe8026ed6bb57ec2ca5c0d30c4" }
+eliteforge-agent-core = { git = "https://gitee.com/person-ai/eliteforge-agent-framework.git", tag = "1.0.0" }
