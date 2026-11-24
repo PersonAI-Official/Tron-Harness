@@ -1341,12 +1341,10 @@ function goalVerdictLabel(value: string | null | undefined, translate: (key: str
   return value?.trim() ?? normalized;
 }
 
-type ContextBlockColor = "seed" | "tool" | "checkpoint" | "state" | "history";
-
 interface ContextMemoryBlockItem {
   placement?: ContextBlockPlacement | "protocol";
   code: string;
-  color: ContextBlockColor;
+  colorIndex: number;
   detailCode?: ContextDetailBlock;
   detailValue?: unknown;
   snapshotSequence?: string;
@@ -1383,7 +1381,7 @@ export function buildReportedContextMemoryBlocks(
   const blocks: ContextMemoryBlockItem[] = [...snapshot.blocks].sort((left,right) => left.position-right.position).map((block, index) => ({
     code: block.id,
     placement: placements.get(block.id),
-    color: block.id === "framework.history" ? "history" : "seed",
+    colorIndex: index,
     detailCode: block.detailValue !== undefined || snapshot.snapshotSequence ? detailAliases[block.id] ?? block.id : undefined,
     detailValue: block.detailValue,
     snapshotSequence: snapshot.snapshotSequence,
@@ -1408,7 +1406,7 @@ export function buildReportedContextMemoryBlocks(
     code: "protocol",
     placement: "protocol",
     order: blocks.length + 1,
-    color: "tool",
+    colorIndex: blocks.length,
     detailCode: snapshot.toolsDetail !== undefined || snapshot.snapshotSequence ? "toolSchema" : undefined,
     detailValue: snapshot.toolsDetail,
     snapshotSequence: snapshot.snapshotSequence,
@@ -1424,22 +1422,44 @@ export function buildReportedContextMemoryBlocks(
   return blocks;
 }
 
-const mutedContextBlockColor = {
-  dot: "border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-high)] text-[var(--color-on-surface-variant)]",
-  fill: "bg-[var(--color-on-surface-variant)]",
-};
+// 主题图表色循环取色：同一份装配报告里相邻的记忆块必定不同色，顶部构成条与明细行沿用同一取色结果。
+const contextBlockChartColors = [
+  "bg-[var(--color-chart-1)]",
+  "bg-[var(--color-chart-2)]",
+  "bg-[var(--color-chart-3)]",
+  "bg-[var(--color-chart-4)]",
+  "bg-[var(--color-chart-5)]",
+];
 
-const contextBlockColorClasses: Record<ContextBlockColor, { dot: string; fill: string }> = {
-  checkpoint: mutedContextBlockColor,
-  history: mutedContextBlockColor,
-  seed: mutedContextBlockColor,
-  state: mutedContextBlockColor,
-  tool: mutedContextBlockColor,
-};
+function contextBlockColorClass(colorIndex: number) {
+  return contextBlockChartColors[Math.abs(Math.trunc(colorIndex)) % contextBlockChartColors.length];
+}
+
+interface ContextCompositionSegment {
+  code: string;
+  colorIndex: number;
+  name: string;
+  share: number;
+  tokens: number;
+}
+
+// 构成条铺满整条轨道：段宽 = 该块占已用 Token 的比例，与明细行共用同一取色。
+function buildContextComposition(blocks: ContextMemoryBlockItem[]): ContextCompositionSegment[] {
+  const usedTokens = blocks.reduce((sum, block) => sum + Math.max(0, block.tokens), 0);
+  if (!usedTokens) return [];
+  return blocks.filter((block) => block.tokens > 0).map((block) => ({
+    code: block.code,
+    colorIndex: block.colorIndex,
+    name: block.name,
+    share: (block.tokens / usedTokens) * 100,
+    tokens: block.tokens,
+  }));
+}
 
 
 function ContextOverviewPanel({
   breakdown,
+  blocks,
   compactionBusy,
   snapshot,
   modelLabel,
@@ -1447,6 +1467,7 @@ function ContextOverviewPanel({
   session,
 }: {
   breakdown: ChatContextBudgetBreakdown | null;
+  blocks: ContextMemoryBlockItem[];
   compactionBusy?: boolean;
   snapshot: ContextAssemblySnapshot | null;
   modelLabel: string;
@@ -1461,6 +1482,7 @@ function ContextOverviewPanel({
     ? contextPercent(usedTokens, inputBudget) : null;
   const statusLabel = contextStatusLabel(null, breakdown, (key) => t(key));
   const statusTone = contextStatusTone(null, breakdown);
+  const composition = buildContextComposition(blocks);
 
   return (
     <div className="min-w-0 space-y-3">
@@ -1515,6 +1537,27 @@ function ContextOverviewPanel({
           )}
           style={{ width: `${percent}%` }}
         />
+      </div> : null}
+      {composition.length ? <div className="flex items-center gap-2">
+        <span className="shrink-0 text-[10px] text-[var(--color-on-surface-variant)]">{t("chat.shortTermMemory.contextPanel.compositionCaption")}</span>
+        <div
+          aria-label={t("chat.shortTermMemory.contextPanel.compositionBarAria")}
+          className="flex h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-[var(--color-surface-container-high)]"
+          data-testid="context-composition-bar"
+          role="img"
+        >
+          {composition.map((segment) => <div
+            key={segment.code}
+            className={cn("h-full shrink-0 transition-[width]", contextBlockColorClass(segment.colorIndex))}
+            data-testid={`context-composition-segment-${segment.code}`}
+            style={{ width: `${segment.share}%` }}
+            title={t("chat.shortTermMemory.contextPanel.compositionSegment", {
+              name: segment.name,
+              percent: formatPercent(segment.share),
+              tokens: formatCompactTokenCount(segment.tokens),
+            })}
+          />)}
+        </div>
       </div> : null}
     </div>
   );
@@ -1598,7 +1641,7 @@ function ContextMemoryBlockRow({ block, assistantCode, sessionCode }: { block: C
   const [detailViewMode, setDetailViewMode] = useState<"preview" | "raw">("preview");
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(false);
-  const colors = contextBlockColorClasses[block.color];
+  const fillClass = contextBlockColorClass(block.colorIndex);
   const percent = contextPercent(block.tokens, block.limitTokens);
   const hasCapacity = block.limitTokens != null && block.limitTokens > 0;
   const lentTokens = block.lentTokens ?? 0;
@@ -1685,7 +1728,7 @@ function ContextMemoryBlockRow({ block, assistantCode, sessionCode }: { block: C
         </div>
       </div>
       {hasCapacity ? <div className="relative mt-1.5 h-1.5 overflow-hidden rounded-full bg-[var(--color-surface-container-high)]" role="progressbar" aria-label={block.name} aria-valuetext={budgetTitle} aria-valuenow={Math.min(block.tokens + lentTokens, block.limitTokens!)} aria-valuemin={0} aria-valuemax={block.limitTokens!} title={budgetTitle}>
-        <div className={cn("absolute inset-y-0 left-0", colors.fill)} style={{ width: `${percent}%` }} />
+        <div className={cn("absolute inset-y-0 left-0", fillClass)} style={{ width: `${percent}%` }} />
         {lentTokens > 0 ? <div className="absolute inset-y-0 bg-[var(--color-primary)] opacity-50" data-testid={`context-lent-${block.code}`} style={{ left: `${percent}%`, width: `${contextPercent(lentTokens, block.limitTokens)}%` }} /> : null}
       </div> : null}
     </>
@@ -2216,6 +2259,7 @@ export function RightContextSidebar({
       <ProviderUsagePanel events={events} fallbackSessionUsage={usage} usageAudit={usageAudit} />
       <div className="space-y-2 rounded-md border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)] p-3" data-testid="context-short-term-memory-card">
         <ContextOverviewPanel
+          blocks={contextBlocks}
           breakdown={budgetBreakdown}
           compactionBusy={compactionBusy || latestCompactionStatus?.loading}
           snapshot={assembly.snapshot}
