@@ -20,9 +20,9 @@ commits with that version number and the release-notes feature.
 Use direct HTTPS image URLs in Markdown, e.g. ![Feature demo](https://example.com/demo.gif).
 Remote images require a network connection and are not bundled with the text. -->
 
-## **[1.1.0] - 2026-11-24**
+## [1.1.0] - 2026-11-24
 
-### **Agents & Chat**
+### Agents & Chat
 
 - Introduced Plan Mode and deliverable file previews, and improved the visualization of chat context budgets, memory usage, and short-term memory.
 - Added configurable native toolsets for agents. Agents can now use different native tools depending on their use cases, rather than relying exclusively on the `tool_search` mechanism, improving execution efficiency.
@@ -31,7 +31,7 @@ Remote images require a network connection and are not bundled with the text. --
 - Fixed issues preventing tasks and automations from running.
 - Renamed "Good Buddy" to "Personal Assistant" and improved task and session management.
 
-### **Remote Access & Capability Packs**
+### Remote Access & Capability Packs
 
 - Added encrypted remote access over both local networks and the internet, allowing users to participate in chats, upload attachments, and manage paired devices from mobile devices. Download [PersonAI-Mobile](https://personai.chat/person-ai-index).
 - Launched the Capability Center, enabling users to upload and share their own capability packs.
@@ -39,13 +39,13 @@ Remote images require a network connection and are not bundled with the text. --
 - Improved workspace deletion and cleanup, task boards, and capability directory loading performance.
 - Introduced a computer-use capability pack powered by CUA Driver, supporting Windows, macOS, and Linux.
 
-### **Internationalization & Stability**
+### Internationalization & Stability
 
 - Completed missing localization strings.
 - Improved remote connectivity, message streaming, and interaction history recovery. Fixed an issue where chat execution errors were not preserved in conversation history.
 - Optimized the Windows startup process and long-path data cleanup.
 
-### **Automation & Task Execution**
+### Automation & Task Execution
 
 - Added support for sequential and parallel automation execution modes, with sequential execution enabled by default.
 - Added support for permanently deleting automations.
