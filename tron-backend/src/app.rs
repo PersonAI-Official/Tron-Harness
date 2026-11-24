@@ -682,6 +682,7 @@ impl AppState {
             chats.clone(),
             agent_management.clone(),
             models.clone(),
+            model_providers.clone(),
             AgentInvocationService::new(
                 workspaces.clone(),
                 apps.clone(),

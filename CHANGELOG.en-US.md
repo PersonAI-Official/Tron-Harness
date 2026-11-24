@@ -27,6 +27,7 @@ Remote images require a network connection and are not bundled with the text. --
 - Added plan mode and delivered-file display, and improved context budgets, memory usage, and run details.
 - Added configurable native tool exposure schemes and improved tool selection, coordinated file edits, and command output viewing.
 - Fixed repeated terminal commands after tool execution and missing context budgets in task and automation runs.
+- Fixed context budget calculations for tasks and automations using conversation automatic routing.
 - Renamed Dude to PersonAI and improved task management, session management, and assistant defaults.
 
 ### Remote access and capability packs

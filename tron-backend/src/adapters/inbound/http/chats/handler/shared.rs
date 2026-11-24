@@ -357,6 +357,28 @@ pub(crate) fn prepare_send_model(
             request.reasoning_effort,
         ) {
             Ok(Some(config)) => {
+                if config.model_code == "PERSON_AI:ROUTE:ChatAuto" {
+                    let router = crate::application::model_router::AgentModelRouter::new(
+                        state.models.clone(),
+                        state.model_providers.clone(),
+                    )
+                    .with_agent_management(state.agent_management.clone());
+                    let (model, auto_route) = router
+                        .resolve_initial(
+                            &session.workspace_code,
+                            &session.session_code,
+                            &runtime.agent_code,
+                            request.reasoning_effort,
+                        )
+                        .map_err(|message| {
+                            ChatSendError::Agent(AgentInvocationError::RuntimeFailed(message))
+                        })?;
+                    return Ok(PreparedChatModel {
+                        config: model,
+                        auto_route: Some(auto_route),
+                        auto_router: Some(router),
+                    });
+                }
                 return Ok(PreparedChatModel::fixed(config));
             }
             Ok(None) => {}

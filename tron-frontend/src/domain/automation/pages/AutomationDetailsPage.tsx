@@ -1,6 +1,5 @@
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { X } from "lucide-react";
-import { getUserTimeZone } from "@/shared/lib/userTimeZone";
 import {
   useEffect,
   useMemo,
@@ -22,6 +21,7 @@ import { OptionSelect } from "@/components/option-select";
 import { PageHeader } from "@/shared/layout/PageHeader";
 import { SurfaceCard } from "@/shared/layout/SurfaceCard";
 import { useLocaleText } from "@/shared/hooks/useLocaleText";
+import { useLocaleFormatters } from "@/shared/hooks/useLocaleFormatters";
 import { useToast } from "@/components/ui/toast";
 
 import {
@@ -60,14 +60,6 @@ import {
   type AutomationModelOption,
 } from "./automationExecutionOptions";
 
-function formatTimestamp(value?: string | null) {
-  if (!value) return "Not available";
-  return new Intl.DateTimeFormat("en-US", { timeZone: getUserTimeZone(),
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
-}
-
 function ReadValue({ children }: { children: ReactNode }) {
   const pt = useLocaleText();
   return (
@@ -86,6 +78,10 @@ export function AutomationDetailsPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const pt = useLocaleText();
+  const { formatDateTime } = useLocaleFormatters();
+  const formatTimestamp = (value?: string | null) => value
+    ? formatDateTime(value, { dateStyle: "medium", timeStyle: "short" })
+    : pt("Not available");
   const automationCode = searchParams.get("automationCode") ?? "";
   const { automation, refresh, setAutomation } = useAutomationDetail(automationCode);
   const toast = useToast();
@@ -116,7 +112,7 @@ export function AutomationDetailsPage() {
     }
     return {
       agentCode: selectedAgentCode,
-      description: "Configured automation agent.",
+      description: pt("Configured automation agent."),
       models: [],
       name: selectedAgentCode,
     };
@@ -220,7 +216,7 @@ export function AutomationDetailsPage() {
         if (controller.signal.aborted) return;
         setAgentOptions([]);
         setWorkspaceModelOptions([]);
-        toast.error(error instanceof Error ? error.message : "Execution options could not be loaded");
+        toast.error(error instanceof Error ? error.message : pt("Execution options could not be loaded"));
       })
       .finally(() => {
         if (!controller.signal.aborted) setExecutionOptionsLoading(false);
@@ -504,7 +500,7 @@ export function AutomationDetailsPage() {
               />
             ) : (
               <MarkdownContent
-                ariaLabel="Automation prompt preview"
+                ariaLabel={pt("Automation prompt preview")}
                 className="max-h-80 overflow-y-auto pr-2"
                 content={automation.prompt}
               />

@@ -22,6 +22,7 @@ pub(super) struct MainAgentAutomationRunner {
     chats: ChatService,
     agent_management: AgentManagementService,
     models: ModelService,
+    model_providers: crate::application::model_provider::ModelProviderService,
     agent: AgentInvocationService,
 }
 
@@ -32,6 +33,7 @@ impl MainAgentAutomationRunner {
         chats: ChatService,
         agent_management: AgentManagementService,
         models: ModelService,
+        model_providers: crate::application::model_provider::ModelProviderService,
         agent: AgentInvocationService,
     ) -> Self {
         Self {
@@ -40,6 +42,7 @@ impl MainAgentAutomationRunner {
             chats,
             agent_management,
             models,
+            model_providers,
             agent,
         }
     }
@@ -51,6 +54,7 @@ impl AutomationExecutionRunner for MainAgentAutomationRunner {
         let chats = self.chats.clone();
         let agent_management = self.agent_management.clone();
         let models = self.models.clone();
+        let model_providers = self.model_providers.clone();
         let agent = self.agent.clone();
         let framework = self.framework.clone();
         crate::app::telemetry::spawn_traced(async move {
@@ -104,6 +108,7 @@ impl AutomationExecutionRunner for MainAgentAutomationRunner {
                 chats,
                 agent_management,
                 models,
+                model_providers,
                 agent,
             )
             .instrument(log_span)
@@ -155,6 +160,7 @@ async fn run_automation_with_main_agent(
     chats: ChatService,
     agent_management: AgentManagementService,
     models: ModelService,
+    model_providers: crate::application::model_provider::ModelProviderService,
     agent: AgentInvocationService,
 ) -> Result<AutomationRunResult, String> {
     let agent_code = automation.agent_code.trim();
@@ -171,16 +177,60 @@ async fn run_automation_with_main_agent(
                 automation.workspace_code
             )
         })?;
-    let uses_main_agent = resolved_runtime
-        .agent_code
-        .eq_ignore_ascii_case(AUTOMATION_AGENT_CODE);
+    let uses_main_agent = matches!(
+        resolved_runtime.runtime_type,
+        crate::domain::agent::AgentRuntimeType::React
+    );
+    let session = chats
+        .create_session(
+            CreateChatSessionCommand {
+                execution_mode: Default::default(),
+                workspace_code: Some(automation.workspace_code.clone()),
+                project_code: None,
+                directory_code: None,
+                working_directory_code: None,
+                title: Some(format!("Automation: {}", automation.name)),
+                app_code: None,
+                task_code: None,
+                source_type: Some(ChatSessionSourceType::Automation),
+                source_code: Some(automation.automation_code.clone()),
+                agent_code: Some(resolved_runtime.agent_code.clone()),
+            },
+            None,
+        )
+        .map_err(|error| format!("Automation chat session creation failed: {error}"))?;
+    let mut agent = agent;
     let (model, model_code, system_model_id) = if uses_main_agent {
-        let model = models
-            .text_agent_model_config(&automation.workspace_code, automation.model_code.as_deref())
-            .map_err(|error| format!("Text model resolution failed: {error}"))?
-            .ok_or_else(|| {
-                "No matching text model is configured for automation execution.".to_string()
-            })?;
+        let requested_model = automation
+            .model_code
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty());
+        let model =
+            if requested_model.is_none() || requested_model == Some("PERSON_AI:ROUTE:ChatAuto") {
+                let router = crate::application::model_router::AgentModelRouter::new(
+                    models.clone(),
+                    model_providers.clone(),
+                )
+                .with_agent_management(agent_management.clone());
+                let (model, route) = router
+                    .resolve_initial(
+                        &automation.workspace_code,
+                        &session.session_code,
+                        &resolved_runtime.agent_code,
+                        None,
+                    )
+                    .map_err(|error| format!("Automation model routing failed: {error}"))?;
+                agent = agent.with_auto_model_route(Some(route), Some(router));
+                model
+            } else {
+                models
+                    .text_agent_model_config(&automation.workspace_code, requested_model)
+                    .map_err(|error| format!("Text model resolution failed: {error}"))?
+                    .ok_or_else(|| {
+                        "No matching text model is configured for automation execution.".to_string()
+                    })?
+            };
         let model_code = model.model_code.clone();
         (model, Some(model_code), None)
     } else {
@@ -247,24 +297,6 @@ async fn run_automation_with_main_agent(
             Some(system_model_id),
         )
     };
-    let session = chats
-        .create_session(
-            CreateChatSessionCommand {
-                execution_mode: Default::default(),
-                workspace_code: Some(automation.workspace_code.clone()),
-                project_code: None,
-                directory_code: None,
-                working_directory_code: None,
-                title: Some(format!("Automation: {}", automation.name)),
-                app_code: None,
-                task_code: None,
-                source_type: Some(ChatSessionSourceType::Automation),
-                source_code: Some(automation.automation_code.clone()),
-                agent_code: Some(resolved_runtime.agent_code.clone()),
-            },
-            None,
-        )
-        .map_err(|error| format!("Automation chat session creation failed: {error}"))?;
     let result = chats
         .send_message(
             &session.session_code,
