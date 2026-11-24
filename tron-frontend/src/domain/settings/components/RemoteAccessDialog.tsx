@@ -80,7 +80,7 @@ export function RemoteAccessDialog({ compact = false }: RemoteAccessDialogProps)
       >
         <Smartphone aria-hidden="true" size={17} />
       </DialogTrigger>
-      <DialogContent className="gap-5 p-6 sm:max-w-3xl">
+      <DialogContent className="h-[760px] content-start gap-5 p-6 sm:max-w-3xl">
         <DialogHeader className="pr-8">
           <div className="flex min-w-0 items-center gap-1.5">
             <Smartphone aria-hidden="true" className="shrink-0" size={16} />
@@ -375,11 +375,6 @@ function RemoteAccessPanel() {
           </InfoTooltip>
         </span>
         <span className="flex items-center gap-2.5">
-          <span className="text-xs text-[var(--color-on-surface-variant)]">
-            {status.active
-              ? t("settingsGeneral.remoteAccess.active")
-              : t("settingsGeneral.remoteAccess.inactive")}
-          </span>
           <Switch
             aria-label={t("settingsGeneral.remoteAccess.enable")}
             checked={status.enabled}
@@ -395,266 +390,270 @@ function RemoteAccessPanel() {
         </p>
       )}
 
-      <div className="space-y-4">
-        <Field
-          hint={t("settingsGeneral.remoteAccess.publicBaseUrlHint")}
-          hintAriaLabel={t("settingsGeneral.remoteAccess.publicBaseUrlHelp")}
-          label={t("settingsGeneral.remoteAccess.publicBaseUrl")}
-        >
-          <TextInput
-            aria-label={t("settingsGeneral.remoteAccess.publicBaseUrl")}
-            disabled={saving}
-            placeholder="https://tron.example.com"
-            value={publicBaseUrl}
-            onChange={(event) => setPublicBaseUrl(event.target.value)}
-          />
-        </Field>
-        <Field
-          actions={
-            status.computerName && machineName.trim() !== status.computerName ? (
-              <Button
-                disabled={saving}
-                onClick={() => setMachineName(status.computerName ?? "")}
-                size="xs"
-                type="button"
-                variant="ghost"
-              >
-                {t("settingsGeneral.remoteAccess.useComputerName")}
-              </Button>
-            ) : null
-          }
-          hint={
-            status.computerName
-              ? t("settingsGeneral.remoteAccess.machineNameHint", {
-                  name: status.computerName,
-                })
-              : undefined
-          }
-          hintAriaLabel={t("settingsGeneral.remoteAccess.machineNameHelp")}
-          label={t("settingsGeneral.remoteAccess.machineName")}
-        >
-          <TextInput
-            aria-label={t("settingsGeneral.remoteAccess.machineName")}
-            disabled={saving}
-            placeholder={status.computerName ?? status.machineName}
-            value={machineName}
-            onChange={(event) => setMachineName(event.target.value)}
-          />
-        </Field>
-        <div className="flex flex-wrap gap-2">
-          <Button disabled={saving} onClick={() => void save({})} size="sm" type="button">
-            {saving
-              ? t("settingsGeneral.remoteAccess.saving")
-              : t("settingsGeneral.remoteAccess.save")}
-          </Button>
-        </div>
-        <dl className="space-y-2 text-sm">
-          <div className="flex flex-wrap items-center gap-2">
-            <dt className="w-28 shrink-0 text-[var(--color-on-surface-variant)]">
-              {t("settingsGeneral.remoteAccess.product")}
-            </dt>
-            <dd className="font-mono">
-              {status.productCode} · {status.productName}
-            </dd>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <dt className="w-28 shrink-0 text-[var(--color-on-surface-variant)]">
-              {t("settingsGeneral.remoteAccess.lanAddress")}
-            </dt>
-            <dd className="min-w-0 break-all font-mono">{lanBaseUrl || "—"}</dd>
-            <Badge size="sm" variant="success">
-              {t("settingsGeneral.remoteAccess.addressPreferred")}
-            </Badge>
-            {lanBaseUrl ? (
-              <Button
-                aria-label={t("settingsGeneral.remoteAccess.copyLanAddress")}
-                onClick={() =>
-                  void copy(lanBaseUrl, t("settingsGeneral.remoteAccess.copied"))
-                }
-                size="icon-sm"
-                type="button"
-                variant="ghost"
-              >
-                <Copy size={14} aria-hidden="true" />
-              </Button>
-            ) : null}
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <dt className="w-28 shrink-0 text-[var(--color-on-surface-variant)]">
-              {t("settingsGeneral.remoteAccess.publicAddress")}
-            </dt>
-            <dd className="min-w-0 break-all font-mono">
-              {publicEndpoint || t("settingsGeneral.remoteAccess.notConfigured")}
-            </dd>
-            <Badge size="sm" variant="outline">
-              {t("settingsGeneral.remoteAccess.addressFallback")}
-            </Badge>
-            {publicEndpoint ? (
-              <Button
-                aria-label={t("settingsGeneral.remoteAccess.copyPublicAddress")}
-                onClick={() =>
-                  void copy(publicEndpoint, t("settingsGeneral.remoteAccess.copied"))
-                }
-                size="icon-sm"
-                type="button"
-                variant="ghost"
-              >
-                <Copy size={14} aria-hidden="true" />
-              </Button>
-            ) : null}
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <dt className="w-28 shrink-0 text-[var(--color-on-surface-variant)]">
-              {t("settingsGeneral.remoteAccess.remotePort")}
-            </dt>
-            <dd className="font-mono">{remotePort}</dd>
-          </div>
-        </dl>
-      </div>
-
-      <div className="space-y-3 border-t border-[var(--color-outline-variant)] pt-4">
-        <div className="flex items-center gap-1">
-          <h3 className="text-sm font-semibold text-[var(--color-on-surface)]">
-            {t("settingsGeneral.remoteAccess.newPairingTitle")}
-          </h3>
-          <InfoTooltip ariaLabel={t("settingsGeneral.remoteAccess.pairingHelp")}>
-            {t("settingsGeneral.remoteAccess.newPairingHint")}
-          </InfoTooltip>
-        </div>
-        <div className="grid gap-5 sm:grid-cols-[minmax(0,1fr)_auto]">
-          <div className="space-y-2 text-sm">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="w-28 shrink-0 text-[var(--color-on-surface-variant)]">
-                {t("settingsGeneral.remoteAccess.transport")}
-              </span>
-              <span>{transportLabel}</span>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="w-28 shrink-0 text-[var(--color-on-surface-variant)]">
-                {t("settingsGeneral.remoteAccess.fingerprint")}
-              </span>
-              <span className="break-all font-mono text-xs">
-                {pairing?.nodeKeyFingerprint || "—"}
-              </span>
-              {pairing?.nodeKeyFingerprint && (
-                <Button
-                  aria-label={t("settingsGeneral.remoteAccess.copyFingerprint")}
-                  onClick={() =>
-                    void copy(pairing.nodeKeyFingerprint, t("settingsGeneral.remoteAccess.copied"))
-                  }
-                  size="icon-sm"
-                  type="button"
-                  variant="ghost"
-                >
-                  <Copy size={14} aria-hidden="true" />
-                </Button>
-              )}
-            </div>
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-[var(--color-on-surface)]">
-                {t("settingsGeneral.remoteAccess.devices")}
-              </p>
-              {devices.length === 0 ? (
-                <p className="text-xs text-[var(--color-on-surface-variant)]">
-                  {t("settingsGeneral.remoteAccess.noDevices")}
-                </p>
-              ) : (
-                <ul className="space-y-2">
-                  {devices.map((device) => (
-                    <li
-                      key={device.deviceId}
-                      className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--color-outline-variant)] px-3 py-2"
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium">{device.name}</p>
-                        <p className="text-xs text-[var(--color-on-surface-variant)]">
-                          {device.platform} · {device.deviceId}
-                          {device.revoked
-                            ? ` · ${t("settingsGeneral.remoteAccess.revokedLabel")}`
-                            : ""}
-                        </p>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-1">
-                        {!device.revoked && (
-                          <Button
-                            disabled={deletingDeviceId !== null}
-                            onClick={() => void revokeDevice(device)}
-                            size="sm"
-                            type="button"
-                            variant="ghost"
-                          >
-                            {t("settingsGeneral.remoteAccess.revoke")}
-                          </Button>
-                        )}
-                        <Button
-                          aria-label={t("settingsGeneral.remoteAccess.deleteDeviceAria", {
-                            name: device.name,
-                          })}
-                          className="text-[var(--color-error)]"
-                          disabled={deletingDeviceId !== null}
-                          onClick={() => void deleteDevice(device)}
-                          size="sm"
-                          title={t("settingsGeneral.remoteAccess.deleteDevice")}
-                          type="button"
-                          variant="ghost"
-                        >
-                          {t("settingsGeneral.remoteAccess.deleteDevice")}
-                        </Button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
-          <div className="flex flex-col items-center gap-3">
-            <div className="rounded-xl bg-white p-3 shadow-sm">
-              {pairing?.pairingUri ? (
-                <QRCodeSVG
-                  aria-label={t("settingsGeneral.remoteAccess.newPairingTitle")}
-                  bgColor="#ffffff"
-                  fgColor="#000000"
-                  level="M"
-                  marginSize={2}
-                  size={176}
-                  value={pairing.pairingUri}
-                />
-              ) : (
-                <div className="flex size-[176px] items-center justify-center rounded-lg bg-[var(--color-surface-container)] text-[var(--color-on-surface-variant)]">
-                  <QrCode size={48} aria-hidden="true" />
-                </div>
-              )}
-            </div>
-            <Button
-              disabled={pairingLoading}
-              onClick={() => void refreshPairing()}
-              size="sm"
-              type="button"
-              variant="outline"
+      {status.enabled && (
+        <>
+          <div className="space-y-4">
+            <Field
+              hint={t("settingsGeneral.remoteAccess.publicBaseUrlHint")}
+              hintAriaLabel={t("settingsGeneral.remoteAccess.publicBaseUrlHelp")}
+              label={t("settingsGeneral.remoteAccess.publicBaseUrl")}
             >
-              {pairingLoading ? (
-                <LoaderCircle className="animate-spin" size={14} aria-hidden="true" />
-              ) : (
-                <RefreshCw size={14} aria-hidden="true" />
-              )}
-              {t("settingsGeneral.remoteAccess.refreshPairing")}
-            </Button>
-            {pairing?.pairingUri && (
-              <Button
-                onClick={() =>
-                  void copy(pairing.pairingUri ?? "", t("settingsGeneral.remoteAccess.copied"))
-                }
-                size="sm"
-                type="button"
-                variant="ghost"
-              >
-                <Copy size={14} aria-hidden="true" />
-                {t("settingsGeneral.remoteAccess.copyPairing")}
+              <TextInput
+                aria-label={t("settingsGeneral.remoteAccess.publicBaseUrl")}
+                disabled={saving}
+                placeholder="https://tron.example.com"
+                value={publicBaseUrl}
+                onChange={(event) => setPublicBaseUrl(event.target.value)}
+              />
+            </Field>
+            <Field
+              actions={
+                status.computerName && machineName.trim() !== status.computerName ? (
+                  <Button
+                    disabled={saving}
+                    onClick={() => setMachineName(status.computerName ?? "")}
+                    size="xs"
+                    type="button"
+                    variant="ghost"
+                  >
+                    {t("settingsGeneral.remoteAccess.useComputerName")}
+                  </Button>
+                ) : null
+              }
+              hint={
+                status.computerName
+                  ? t("settingsGeneral.remoteAccess.machineNameHint", {
+                      name: status.computerName,
+                    })
+                  : undefined
+              }
+              hintAriaLabel={t("settingsGeneral.remoteAccess.machineNameHelp")}
+              label={t("settingsGeneral.remoteAccess.machineName")}
+            >
+              <TextInput
+                aria-label={t("settingsGeneral.remoteAccess.machineName")}
+                disabled={saving}
+                placeholder={status.computerName ?? status.machineName}
+                value={machineName}
+                onChange={(event) => setMachineName(event.target.value)}
+              />
+            </Field>
+            <div className="flex flex-wrap gap-2">
+              <Button disabled={saving} onClick={() => void save({})} size="sm" type="button">
+                {saving
+                  ? t("settingsGeneral.remoteAccess.saving")
+                  : t("settingsGeneral.remoteAccess.save")}
               </Button>
-            )}
+            </div>
+            <dl className="space-y-2 text-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <dt className="w-28 shrink-0 text-[var(--color-on-surface-variant)]">
+                  {t("settingsGeneral.remoteAccess.product")}
+                </dt>
+                <dd className="font-mono">
+                  {status.productCode} · {status.productName}
+                </dd>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <dt className="w-28 shrink-0 text-[var(--color-on-surface-variant)]">
+                  {t("settingsGeneral.remoteAccess.lanAddress")}
+                </dt>
+                <dd className="min-w-0 break-all font-mono">{lanBaseUrl || "—"}</dd>
+                <Badge size="sm" variant="success">
+                  {t("settingsGeneral.remoteAccess.addressPreferred")}
+                </Badge>
+                {lanBaseUrl ? (
+                  <Button
+                    aria-label={t("settingsGeneral.remoteAccess.copyLanAddress")}
+                    onClick={() =>
+                      void copy(lanBaseUrl, t("settingsGeneral.remoteAccess.copied"))
+                    }
+                    size="icon-sm"
+                    type="button"
+                    variant="ghost"
+                  >
+                    <Copy size={14} aria-hidden="true" />
+                  </Button>
+                ) : null}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <dt className="w-28 shrink-0 text-[var(--color-on-surface-variant)]">
+                  {t("settingsGeneral.remoteAccess.publicAddress")}
+                </dt>
+                <dd className="min-w-0 break-all font-mono">
+                  {publicEndpoint || t("settingsGeneral.remoteAccess.notConfigured")}
+                </dd>
+                <Badge size="sm" variant="outline">
+                  {t("settingsGeneral.remoteAccess.addressFallback")}
+                </Badge>
+                {publicEndpoint ? (
+                  <Button
+                    aria-label={t("settingsGeneral.remoteAccess.copyPublicAddress")}
+                    onClick={() =>
+                      void copy(publicEndpoint, t("settingsGeneral.remoteAccess.copied"))
+                    }
+                    size="icon-sm"
+                    type="button"
+                    variant="ghost"
+                  >
+                    <Copy size={14} aria-hidden="true" />
+                  </Button>
+                ) : null}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <dt className="w-28 shrink-0 text-[var(--color-on-surface-variant)]">
+                  {t("settingsGeneral.remoteAccess.remotePort")}
+                </dt>
+                <dd className="font-mono">{remotePort}</dd>
+              </div>
+            </dl>
           </div>
-        </div>
-      </div>
+
+          <div className="space-y-3 border-t border-[var(--color-outline-variant)] pt-4">
+            <div className="flex items-center gap-1">
+              <h3 className="text-sm font-semibold text-[var(--color-on-surface)]">
+                {t("settingsGeneral.remoteAccess.newPairingTitle")}
+              </h3>
+              <InfoTooltip ariaLabel={t("settingsGeneral.remoteAccess.pairingHelp")}>
+                {t("settingsGeneral.remoteAccess.newPairingHint")}
+              </InfoTooltip>
+            </div>
+            <div className="grid gap-5 sm:grid-cols-[minmax(0,1fr)_auto]">
+              <div className="space-y-2 text-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="w-28 shrink-0 text-[var(--color-on-surface-variant)]">
+                    {t("settingsGeneral.remoteAccess.transport")}
+                  </span>
+                  <span>{transportLabel}</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="w-28 shrink-0 text-[var(--color-on-surface-variant)]">
+                    {t("settingsGeneral.remoteAccess.fingerprint")}
+                  </span>
+                  <span className="break-all font-mono text-xs">
+                    {pairing?.nodeKeyFingerprint || "—"}
+                  </span>
+                  {pairing?.nodeKeyFingerprint && (
+                    <Button
+                      aria-label={t("settingsGeneral.remoteAccess.copyFingerprint")}
+                      onClick={() =>
+                        void copy(pairing.nodeKeyFingerprint, t("settingsGeneral.remoteAccess.copied"))
+                      }
+                      size="icon-sm"
+                      type="button"
+                      variant="ghost"
+                    >
+                      <Copy size={14} aria-hidden="true" />
+                    </Button>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-[var(--color-on-surface)]">
+                    {t("settingsGeneral.remoteAccess.devices")}
+                  </p>
+                  {devices.length === 0 ? (
+                    <p className="text-xs text-[var(--color-on-surface-variant)]">
+                      {t("settingsGeneral.remoteAccess.noDevices")}
+                    </p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {devices.map((device) => (
+                        <li
+                          key={device.deviceId}
+                          className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--color-outline-variant)] px-3 py-2"
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium">{device.name}</p>
+                            <p className="text-xs text-[var(--color-on-surface-variant)]">
+                              {device.platform} · {device.deviceId}
+                              {device.revoked
+                                ? ` · ${t("settingsGeneral.remoteAccess.revokedLabel")}`
+                                : ""}
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-1">
+                            {!device.revoked && (
+                              <Button
+                                disabled={deletingDeviceId !== null}
+                                onClick={() => void revokeDevice(device)}
+                                size="sm"
+                                type="button"
+                                variant="ghost"
+                              >
+                                {t("settingsGeneral.remoteAccess.revoke")}
+                              </Button>
+                            )}
+                            <Button
+                              aria-label={t("settingsGeneral.remoteAccess.deleteDeviceAria", {
+                                name: device.name,
+                              })}
+                              className="text-[var(--color-error)]"
+                              disabled={deletingDeviceId !== null}
+                              onClick={() => void deleteDevice(device)}
+                              size="sm"
+                              title={t("settingsGeneral.remoteAccess.deleteDevice")}
+                              type="button"
+                              variant="ghost"
+                            >
+                              {t("settingsGeneral.remoteAccess.deleteDevice")}
+                            </Button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-col items-center gap-3">
+                <div className="rounded-xl bg-white p-3 shadow-sm">
+                  {pairing?.pairingUri ? (
+                    <QRCodeSVG
+                      aria-label={t("settingsGeneral.remoteAccess.newPairingTitle")}
+                      bgColor="#ffffff"
+                      fgColor="#000000"
+                      level="M"
+                      marginSize={2}
+                      size={176}
+                      value={pairing.pairingUri}
+                    />
+                  ) : (
+                    <div className="flex size-[176px] items-center justify-center rounded-lg bg-[var(--color-surface-container)] text-[var(--color-on-surface-variant)]">
+                      <QrCode size={48} aria-hidden="true" />
+                    </div>
+                  )}
+                </div>
+                <Button
+                  disabled={pairingLoading}
+                  onClick={() => void refreshPairing()}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  {pairingLoading ? (
+                    <LoaderCircle className="animate-spin" size={14} aria-hidden="true" />
+                  ) : (
+                    <RefreshCw size={14} aria-hidden="true" />
+                  )}
+                  {t("settingsGeneral.remoteAccess.refreshPairing")}
+                </Button>
+                {pairing?.pairingUri && (
+                  <Button
+                    onClick={() =>
+                      void copy(pairing.pairingUri ?? "", t("settingsGeneral.remoteAccess.copied"))
+                    }
+                    size="sm"
+                    type="button"
+                    variant="ghost"
+                  >
+                    <Copy size={14} aria-hidden="true" />
+                    {t("settingsGeneral.remoteAccess.copyPairing")}
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

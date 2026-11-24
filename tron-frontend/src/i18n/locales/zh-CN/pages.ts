@@ -3368,8 +3368,6 @@ export const pages = {
       enableHelp: "查看开启远程访问说明",
       enableHint:
         "开启后重启 Tron，手机即可通过二维码配对连接。远程访问使用独立端口，桌面本机访问不受影响；配对令牌是唯一门禁，请勿公开发送。",
-      active: "远程访问已生效",
-      inactive: "远程访问未生效",
       restartRequired: "设置已保存。请重启 Tron，让新的监听地址和令牌生效。",
       saved: "已保存。",
       savedRestart: "已保存，重启 Tron 后生效。",

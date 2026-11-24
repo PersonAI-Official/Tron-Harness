@@ -3462,8 +3462,6 @@ export const pages = {
       enableHelp: "Show remote access toggle help",
       enableHint:
         "After enabling, restart Tron and pair a phone with the QR code. Remote access uses a dedicated port and does not affect local desktop access. The pairing token is the only gate; do not share it publicly.",
-      active: "Remote access is active",
-      inactive: "Remote access is inactive",
       restartRequired: "Saved. Restart Tron to apply the new listener address and token.",
       saved: "Saved.",
       savedRestart: "Saved. Restart Tron to apply.",
