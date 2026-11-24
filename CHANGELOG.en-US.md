@@ -9,16 +9,37 @@ Startup reminders show only the installed version; Settings shows the full histo
 The dialog follows the interface language.
 
 Historical versions are reconstructed from changes to `version.properties`.
-Dates refer to those commits, not verified installer publication dates. The repository
-has no release tags; independently versioned frontend packages are not product releases.
+Dates refer to those commits, not verified installer publication dates. Independently
+versioned frontend packages are not product releases.
 `0.1.0-SNAPSHOT` describes the development baseline when unified versioning was introduced;
 subsequent development is summarized under `1.0.0`. The `1.0.2` entry also includes later
-commits with that version number and the unreleased release-notes feature from this work.
+commits with that version number and the release-notes feature.
 
 <!-- History sources: 0.1.0-SNAPSHOT through a5c7b167; 1.0.0: a5c7b167..a430ff1c;
 1.0.1: a430ff1c..c59763ac; committed 1.0.2 changes: c59763ac..3dd760d3.
 Use direct HTTPS image URLs in Markdown, e.g. ![Feature demo](https://example.com/demo.gif).
 Remote images require a network connection and are not bundled with the text. -->
+
+## [1.1.0] - 2026-11-24
+
+### Agents and chat
+
+- Added plan mode and delivered-file display, and improved context budgets, memory usage, and run details.
+- Added configurable native tool exposure schemes and improved tool selection, coordinated file edits, and command output viewing.
+- Fixed repeated terminal commands after tool execution and missing context budgets in task and automation runs.
+- Renamed Dude to PersonAI and improved task management, session management, and assistant defaults.
+
+### Remote access and capability packs
+
+- Added encrypted LAN and public remote access, including mobile chat, attachment uploads, and paired-device management.
+- Enhanced the capability center and desktop-control packs with platform-specific distribution and queued operations while agents are busy.
+- Improved workspace deletion cleanup, the task board, and capability catalog loading speed.
+
+### Localization and reliability
+
+- Centralized translations for backend messages and improved knowledge retrieval notices and multilingual support.
+- Improved remote connections, message streams, and interaction history recovery; fixed lost run errors in chat history.
+- Improved startup after Windows updates and cleanup of long-path data.
 
 ## [1.0.2] - 2026-11-11
 

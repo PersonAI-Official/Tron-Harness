@@ -1,4 +1,4 @@
--- Unreleased changes after 1.0.2. Section markers retain compatibility with development databases.
+-- Changes released in 1.1.0 after 1.0.2. Section markers retain compatibility with development databases.
 
 -- tron:migration:0002_rename_topics_menu
 -- Rename the built-in Topics menu to Work Topics. 0001_init.sql still seeds the
@@ -320,3 +320,10 @@ CREATE TABLE platform_native_tool_config (
     config_json TEXT NOT NULL,
     updated_at  INTEGER NOT NULL
 );
+
+-- tron:migration:0009_rename_explore_menu
+UPDATE navigation_menu_translations
+SET label = 'Explore'
+WHERE menu_id = (SELECT id FROM navigation_menus
+                 WHERE menu_code = 'EXPLORE_MORE' AND source = 'BuiltIn')
+  AND locale = 'en-US' AND label = 'Explore more';

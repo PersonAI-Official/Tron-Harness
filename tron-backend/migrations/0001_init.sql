@@ -1337,7 +1337,7 @@ INSERT INTO navigation_menu_translations (id, menu_id, locale, label) VALUES
     (734560100000000003, 734560000000000002, 'zh-CN', '通知'),
     (734560100000000004, 734560000000000002, 'en-US', 'Notifications'),
     (734570100000000001, 734570000000000001, 'zh-CN', '探索更多'),
-    (734570100000000002, 734570000000000001, 'en-US', 'Explore');
+    (734570100000000002, 734570000000000001, 'en-US', 'Explore more');
 
 INSERT INTO navigation_menu_trees (id, tree_code, tree_type, domain_id, built_in, enabled, created_at, updated_at) VALUES
     (734500000000000001, 'ADVANCED', 'Domain', 734500000000000001, 1, 1, '2026-08-29T00:00:00Z', '2026-08-29T00:00:00Z');
