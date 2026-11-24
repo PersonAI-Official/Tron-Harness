@@ -97,6 +97,7 @@
   },
   {
     "catalogKey": "task.execution",
+    "version": 2,
     "promptCode": "SYS_TASK_EXECUTION",
     "displayName": "Task execution instruction",
     "category": "TEMPLATE",
@@ -113,12 +114,12 @@
       "en-US": {
         "displayName": "Task execution instruction",
         "description": "Starts an agent run for a managed task.",
-        "promptBody": "Execute the following task and provide the final result. Use available task, app, memory, and platform tools when helpful. Do not store the final result in the task description; the platform records your final reply separately as the task execution result.\n\n{{task_context}}"
+        "promptBody": "Execute the following task and provide the final result. Use the available task, app, memory, and platform tools as needed. Read the task with task_get to check its current state and valid flow statuses before updating it. When you start work on an open task, use task_update to set an appropriate in-progress status from that flow. Update the status and progress together as meaningful work proceeds; base progress on verified work, not guesses. After verifying that the task objective is complete and no work remains, use task_update to set CLOSED and progress 100. If work is incomplete, blocked, or awaiting a decision, keep a valid non-closed status and report the remaining work; do not mark it complete merely because this run ended. Do not reopen or overwrite changes made by others without a reason. If task tools are unavailable or an update fails, explain that in the final reply. Do not write the final result into the task description; the platform records your final reply separately.\n\n{{task_context}}"
       },
       "zh-CN": {
         "displayName": "任务执行指令",
         "description": "为受管任务启动 agent 运行。",
-        "promptBody": "执行以下任务并提供最终结果。必要时使用可用的任务、应用、记忆和平台工具。不要把最终结果写回任务描述；平台会单独记录本次执行的最终答复。\n\n{{task_context}}"
+        "promptBody": "执行以下任务并提供最终结果，按需使用可用的任务、应用、记忆和平台工具。更新前先用 task_get 读取任务当前状态和流程中的合法状态。开始处理未关闭的任务时，用 task_update 将状态设为该流程中合适的进行中状态。工作取得实质进展时同时更新状态和进度，进度须以已核实的工作为依据，不要猜测。确认任务目标已达成且没有剩余工作后，用 task_update 将状态设为 CLOSED、进度设为 100。工作未完成、受阻或等待决策时，保持合法的未关闭状态并说明剩余工作；不要仅因为本次运行结束就关闭任务。没有理由时不要重开任务或覆盖他人的修改。如果任务工具不可用或更新失败，在最终答复中说明。不要把最终结果写回任务描述；平台会单独记录最终答复。\n\n{{task_context}}"
       }
     }
   },
