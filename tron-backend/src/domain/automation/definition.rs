@@ -27,6 +27,13 @@ pub enum AutomationTriggerSource {
     Manual,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum AutomationConcurrencyMode {
+    #[default]
+    Serial,
+    Parallel,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Automation {
     pub id: SnowflakeId,
@@ -41,6 +48,7 @@ pub struct Automation {
     pub scheduler_expression: String,
     pub timezone: String,
     pub status: AutomationStatus,
+    pub concurrency_mode: AutomationConcurrencyMode,
     pub previous_status: Option<AutomationStatus>,
     pub last_execution_status: Option<AutomationExecutionStatus>,
     pub last_execution_code: Option<String>,
@@ -102,6 +110,8 @@ pub struct AutomationExecutionDraft {
 #[serde(rename_all = "camelCase")]
 pub struct AutomationOptions {
     pub default_status: AutomationStatus,
+    pub default_concurrency_mode: AutomationConcurrencyMode,
+    pub concurrency_modes: Vec<AutomationConcurrencyMode>,
     pub execution_statuses: Vec<AutomationExecutionStatus>,
     pub statuses: Vec<AutomationStatus>,
     pub timezones: Vec<String>,
@@ -119,6 +129,7 @@ pub struct AutomationListItem {
     pub cron_expression: String,
     pub timezone: String,
     pub status: AutomationStatus,
+    pub concurrency_mode: AutomationConcurrencyMode,
     pub last_execution_status: Option<AutomationExecutionStatus>,
     pub last_execution_summary: Option<String>,
     pub last_execution_code: Option<String>,
@@ -147,6 +158,7 @@ pub struct AutomationDetail {
     pub scheduler_expression: String,
     pub timezone: String,
     pub status: AutomationStatus,
+    pub concurrency_mode: AutomationConcurrencyMode,
     pub previous_status: Option<AutomationStatus>,
     pub last_execution_status: Option<AutomationExecutionStatus>,
     pub last_execution_code: Option<String>,
@@ -261,12 +273,36 @@ pub const AUTOMATION_EXECUTION_STATUSES: [AutomationExecutionStatus; 6] = [
     AutomationExecutionStatus::Skipped,
 ];
 
+pub const AUTOMATION_CONCURRENCY_MODES: [AutomationConcurrencyMode; 2] = [
+    AutomationConcurrencyMode::Serial,
+    AutomationConcurrencyMode::Parallel,
+];
+
 pub fn automation_options() -> AutomationOptions {
     AutomationOptions {
         default_status: AutomationStatus::Paused,
+        default_concurrency_mode: AutomationConcurrencyMode::Serial,
+        concurrency_modes: AUTOMATION_CONCURRENCY_MODES.to_vec(),
         execution_statuses: AUTOMATION_EXECUTION_STATUSES.to_vec(),
         statuses: AUTOMATION_STATUSES.to_vec(),
         timezones: vec!["UTC".into()],
+    }
+}
+
+pub fn automation_concurrency_mode_to_storage(mode: AutomationConcurrencyMode) -> &'static str {
+    match mode {
+        AutomationConcurrencyMode::Serial => "Serial",
+        AutomationConcurrencyMode::Parallel => "Parallel",
+    }
+}
+
+pub fn automation_concurrency_mode_from_storage(
+    value: &str,
+) -> Result<AutomationConcurrencyMode, AutomationError> {
+    match value {
+        "Serial" => Ok(AutomationConcurrencyMode::Serial),
+        "Parallel" => Ok(AutomationConcurrencyMode::Parallel),
+        _ => Err(AutomationError::StorageFailure),
     }
 }
 

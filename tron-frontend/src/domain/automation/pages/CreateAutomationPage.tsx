@@ -18,7 +18,10 @@ import { useToast } from "@/components/ui/toast";
 import { createAutomation, previewAutomationSchedule } from "@/domain/automation/api";
 import { editableAutomationStatuses } from "@/domain/automation/constants";
 import { createMockAutomation } from "@/domain/automation/mock/data";
-import type { AutomationOperationalStatus } from "@/domain/automation/model";
+import type {
+  AutomationConcurrencyMode,
+  AutomationOperationalStatus,
+} from "@/domain/automation/model";
 import { fetchWorkspaceInternalAgents, fetchWorkspaceSystemAgents } from "@/domain/agent/api/agentManagementApi";
 import { listWorkspaceInternalAgentsMock, listWorkspaceSystemAgentsMock } from "@/domain/agent/mock";
 import { fetchModelSelectOptions } from "@/domain/model/api/modelApi";
@@ -53,6 +56,7 @@ export function CreateAutomationPage() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const previewRequest = useRef(0);
   const [status, setStatus] = useState<AutomationOperationalStatus>("Active");
+  const [concurrencyMode, setConcurrencyMode] = useState<AutomationConcurrencyMode>("Serial");
   const [prompt, setPrompt] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [promptFullscreenOpen, setPromptFullscreenOpen] = useState(false);
@@ -156,6 +160,7 @@ export function CreateAutomationPage() {
       const created = dataSource === "api"
         ? await createAutomation({
           cronExpression,
+          concurrencyMode,
           description,
           agentCode: selectedAgentCode,
           modelCode: selectedModelCode,
@@ -166,6 +171,7 @@ export function CreateAutomationPage() {
         })
         : createMockAutomation({
           cronExpression,
+          concurrencyMode,
           description,
           agentCode: selectedAgentCode,
           modelCode: selectedModelCode,
@@ -214,7 +220,7 @@ export function CreateAutomationPage() {
           <Field label={pageT("fields.description", "Description")}>
             <TextArea aria-label={pageT("aria.description", "Automation description")} className="min-h-24" placeholder={pageT("placeholders.description", "Briefly describe what this automation does.")} value={description} onChange={(event) => setDescription(event.target.value)} />
           </Field>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-3">
             <Field label={pageT("fields.executionAgent", "Execution agent")}>
               <OptionSelect
                 ariaLabel={pageT("aria.executionAgent", "Automation execution agent")}
@@ -240,6 +246,20 @@ export function CreateAutomationPage() {
                 value={selectedModelOptionCode}
                 onChange={setSelectedModelOptionCode}
               />
+            </Field>
+            <Field
+              label={pageT("fields.concurrencyMode", "Execution mode")}
+              hint={pageT("values.serialStopsPrevious", "Serial mode stops an unfinished run when a newer run starts.")}
+              hintAriaLabel={pageT("aria.concurrencyModeHelp", "Automation execution mode help")}
+            >
+              <SelectInput
+                aria-label={pageT("aria.concurrencyMode", "Automation execution mode")}
+                value={concurrencyMode}
+                onValueChange={(value) => setConcurrencyMode(value as AutomationConcurrencyMode)}
+              >
+                <SelectItem value="Serial">{pageT("values.serial", "Serial")}</SelectItem>
+                <SelectItem value="Parallel">{pageT("values.parallel", "Parallel")}</SelectItem>
+              </SelectInput>
             </Field>
           </div>
           <Field label={pageT("fields.cron", "Cron expression")}>

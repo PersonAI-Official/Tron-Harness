@@ -7,15 +7,15 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import {
-  useNavigate,
-  useSearchParams,
-} from "react-router";
+import { useSearchParams } from "react-router";
 
+import type { EditableTab } from "@/components/editable-tabs";
+import { InspectorPanel } from "@/components/inspector";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DetailField } from "@/components/detail-field";
-import { Field, TextArea, TextInput } from "@/components/forms";
+import { Field, SelectInput, TextArea, TextInput } from "@/components/forms";
+import { SelectItem } from "@/components/ui/select";
 import { MarkdownContent } from "@/components/markdown-content";
 import { OptionSelect } from "@/components/option-select";
 import { PageHeader } from "@/shared/layout/PageHeader";
@@ -23,6 +23,13 @@ import { SurfaceCard } from "@/shared/layout/SurfaceCard";
 import { useLocaleText } from "@/shared/hooks/useLocaleText";
 import { useLocaleFormatters } from "@/shared/hooks/useLocaleFormatters";
 import { useToast } from "@/components/ui/toast";
+import { useOpenRightSidebar } from "@/shared/hooks/useOpenRightSidebar";
+import {
+  useTabPanelConfig,
+  useTabPanelRegistry,
+  useTabPanelScopeId,
+} from "@/shared/layout/content/TabPanelRegistry";
+import { panelTabId, useTabStore } from "@/store/tabStore";
 
 import {
   archiveAutomation,
@@ -31,6 +38,7 @@ import {
   updateAutomation,
   updateAutomationStatus,
 } from "@/domain/automation/api";
+import { AutomationExecutionHistoryPanel } from "@/domain/automation/components";
 import { getAutomationStatusTone } from "@/domain/automation/constants";
 import {
   useAutomationDetail,
@@ -43,6 +51,7 @@ import {
   updateMockAutomationStatus,
 } from "@/domain/automation/mock/data";
 import type {
+  AutomationConcurrencyMode,
   AutomationOperationalStatus,
 } from "@/domain/automation/model";
 import { fetchWorkspaceInternalAgents, fetchWorkspaceSystemAgents } from "@/domain/agent/api/agentManagementApi";
@@ -69,15 +78,14 @@ function ReadValue({ children }: { children: ReactNode }) {
   );
 }
 
-function automationExecutionsHref(automationCode: string) {
-  const params = new URLSearchParams({ automationCode });
-  return `/automations/executions?${params.toString()}`;
-}
-
 export function AutomationDetailsPage() {
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
   const pt = useLocaleText();
+  const openRightSidebar = useOpenRightSidebar();
+  const tabPanelRegistry = useTabPanelRegistry();
+  const tabPanelScopeId = useTabPanelScopeId();
+  const workspaceCode = useTabStore((state) => state.workspaceCode);
+  const panelId = panelTabId(tabPanelScopeId, workspaceCode);
   const { formatDateTime } = useLocaleFormatters();
   const formatTimestamp = (value?: string | null) => value
     ? formatDateTime(value, { dateStyle: "medium", timeStyle: "short" })
@@ -89,11 +97,13 @@ export function AutomationDetailsPage() {
   const [name, setName] = useState(automation.name);
   const [description, setDescription] = useState(automation.description ?? "");
   const [cronExpression, setCronExpression] = useState(automation.cronExpression);
+  const [concurrencyMode, setConcurrencyMode] = useState<AutomationConcurrencyMode>(automation.concurrencyMode);
   const [prompt, setPrompt] = useState(automation.prompt);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [statusBusy, setStatusBusy] = useState(false);
   const [executionBusy, setExecutionBusy] = useState(false);
+  const [executionHistoryRefreshToken, setExecutionHistoryRefreshToken] = useState(0);
   const [archiveBusy, setArchiveBusy] = useState(false);
   const [promptFullscreenOpen, setPromptFullscreenOpen] = useState(false);
   const [agentOptions, setAgentOptions] = useState<AutomationAgentOption[]>([mainAutomationAgentOption]);
@@ -159,11 +169,42 @@ export function AutomationDetailsPage() {
     () => automationModelCodeFromOption(visibleModelOptions, selectedModelOptionCode),
     [selectedModelOptionCode, visibleModelOptions],
   );
+  const rightPanel = useMemo(() => (
+    <InspectorPanel title={pt("Core definition")}>
+      <div className="space-y-3">
+        <DetailField label={pt("Automation name")} value={automation.name} />
+        <DetailField label={pt("Automation code")} value={automation.automationCode || automationCode} />
+        <DetailField label={pt("Status")} value={<Badge variant={getAutomationStatusTone(automation.status)}>{pt(automation.status)}</Badge>} />
+        <DetailField label={pt("Execution mode")} value={pt(automation.concurrencyMode)} />
+        <DetailField label={pt("Latest result")} value={automation.lastExecutionStatus ? pt(automation.lastExecutionStatus) : pt("No runs")} />
+      </div>
+    </InspectorPanel>
+  ), [automation, automationCode, pt]);
+  const rightPanelTabs = useMemo<EditableTab[]>(() => (automationCode ? [{
+    key: "automation-execution-history",
+    label: pt("Execution instances"),
+    closable: false,
+    children: (
+      <AutomationExecutionHistoryPanel
+        automationCode={automationCode}
+        refreshToken={executionHistoryRefreshToken}
+      />
+    ),
+  }] : []), [automationCode, executionHistoryRefreshToken, pt]);
+
+  useTabPanelConfig({ rightPanel, rightPanelTabs });
+
+  useEffect(() => {
+    if (!automationCode.trim()) return;
+    openRightSidebar();
+    tabPanelRegistry.setRightPanelActiveKey(panelId, "automation-execution-history");
+  }, [automationCode, openRightSidebar, panelId, tabPanelRegistry]);
 
   useEffect(() => {
     setName(automation.name);
     setDescription(automation.description ?? "");
     setCronExpression(automation.cronExpression);
+    setConcurrencyMode(automation.concurrencyMode);
     setPrompt(automation.prompt);
     setSelectedAgentCode(automation.agentCode || mainAutomationAgentOption.agentCode);
     setSelectedModelOptionCode(optionCodeForAutomationModel(automation.agentCode, automation.modelCode));
@@ -229,6 +270,7 @@ export function AutomationDetailsPage() {
   const detailDirty = name !== automation.name
     || description !== (automation.description ?? "")
     || cronExpression !== automation.cronExpression
+    || concurrencyMode !== automation.concurrencyMode
     || prompt !== automation.prompt
     || selectedAgentCode !== (automation.agentCode || mainAutomationAgentOption.agentCode)
     || selectedModelCode !== automation.modelCode;
@@ -237,6 +279,7 @@ export function AutomationDetailsPage() {
     setName(automation.name);
     setDescription(automation.description ?? "");
     setCronExpression(automation.cronExpression);
+    setConcurrencyMode(automation.concurrencyMode);
     setPrompt(automation.prompt);
     setSelectedAgentCode(automation.agentCode || mainAutomationAgentOption.agentCode);
     setSelectedModelOptionCode(optionCodeForAutomationModel(automation.agentCode, automation.modelCode));
@@ -255,6 +298,7 @@ export function AutomationDetailsPage() {
     try {
       const payload = {
         agentCode: selectedAgentCode,
+        concurrencyMode,
         cronExpression,
         description,
         modelCode: selectedModelCode,
@@ -346,6 +390,7 @@ export function AutomationDetailsPage() {
         ? await executeAutomation(automation.automationCode)
         : executeMockAutomation(automation.automationCode);
       setAutomation(updated);
+      setExecutionHistoryRefreshToken((value) => value + 1);
       toast.success(pt("Manual execution recorded for {{code}}", { code: updated.automationCode }));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : pt("Automation execution could not be recorded"));
@@ -388,10 +433,6 @@ export function AutomationDetailsPage() {
                 {pt("Pause")}
               </Button>
             </div>
-            <Button variant="secondary" onClick={() => navigate(automationExecutionsHref(automation.automationCode || automationCode))}>
-
-              {pt("Execution instances")}
-            </Button>
             <Button disabled={executionBusy || archived} variant="secondary" onClick={handleExecute}>
 
               {executionBusy ? pt("Running...") : pt("Run Now")}
@@ -463,6 +504,21 @@ export function AutomationDetailsPage() {
                 value={selectedModelOptionCode}
                 onChange={setSelectedModelOptionCode}
               />
+            </Field>
+            <Field
+              label={pt("Execution mode")}
+              hint={pt("Serial mode stops an unfinished run when a newer run starts.")}
+              hintAriaLabel={pt("Automation execution mode help")}
+            >
+              <SelectInput
+                aria-label={pt("Automation execution mode")}
+                disabled={!editing || archived}
+                value={concurrencyMode}
+                onValueChange={(value) => setConcurrencyMode(value as AutomationConcurrencyMode)}
+              >
+                <SelectItem value="Serial">{pt("Serial")}</SelectItem>
+                <SelectItem value="Parallel">{pt("Parallel")}</SelectItem>
+              </SelectInput>
             </Field>
             <Field label={pt("Cron expression")}>
               <TextInput aria-label={pt("Cron expression")} className="font-mono" disabled={!editing || archived} value={cronExpression} onChange={(event) => setCronExpression(event.target.value)} />

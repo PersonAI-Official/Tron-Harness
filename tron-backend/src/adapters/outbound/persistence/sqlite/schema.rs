@@ -5,7 +5,11 @@ use super::framework_storage::business_transaction;
 
 const INITIAL_SCHEMA: &str = include_str!("../../../../../migrations/0001_init.sql");
 const PROFILE_SECTION: &str = "-- tron:profiles\n";
-const BUSINESS_MIGRATIONS: &str = include_str!("../../../../../migrations/0002_post_1_0_2.sql");
+const BUSINESS_MIGRATIONS: &[&str] = &[
+    include_str!("../../../../../migrations/0002_post_1_0_2.sql"),
+    include_str!("../../../../../migrations/0010_task_execution_records.sql"),
+    include_str!("../../../../../migrations/0011_automation_concurrency_mode.sql"),
+];
 const MIGRATION_SECTION: &str = "-- tron:migration:";
 
 pub(crate) fn initialize_business(connection: &Connection) -> rusqlite::Result<()> {
@@ -97,22 +101,24 @@ fn refresh_builtin_run_count_defaults(connection: &Connection) -> rusqlite::Resu
 // Apply each business migration once. The marker holds the migration file stem
 // so a migration never runs twice, including on databases created from 0001.
 fn apply_business_migrations(connection: &Connection) -> rusqlite::Result<()> {
-    for section in BUSINESS_MIGRATIONS.split(MIGRATION_SECTION).skip(1) {
-        let (name, sql) = section.split_once('\n').expect("migration section name");
-        let name = name.trim();
-        let applied: bool = connection.query_row(
-            "SELECT EXISTS(SELECT 1 FROM tron_schema_initialized WHERE scope = ?1)",
-            [name],
-            |row| row.get(0),
-        )?;
-        if applied {
-            continue;
+    for migration in BUSINESS_MIGRATIONS {
+        for section in migration.split(MIGRATION_SECTION).skip(1) {
+            let (name, sql) = section.split_once('\n').expect("migration section name");
+            let name = name.trim();
+            let applied: bool = connection.query_row(
+                "SELECT EXISTS(SELECT 1 FROM tron_schema_initialized WHERE scope = ?1)",
+                [name],
+                |row| row.get(0),
+            )?;
+            if applied {
+                continue;
+            }
+            connection.execute_batch(sql)?;
+            connection.execute(
+                "INSERT INTO tron_schema_initialized (scope) VALUES (?1)",
+                [name],
+            )?;
         }
-        connection.execute_batch(sql)?;
-        connection.execute(
-            "INSERT INTO tron_schema_initialized (scope) VALUES (?1)",
-            [name],
-        )?;
     }
     Ok(())
 }

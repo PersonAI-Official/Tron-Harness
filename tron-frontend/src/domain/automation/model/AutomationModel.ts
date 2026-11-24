@@ -8,9 +8,12 @@ export type AutomationExecutionStatus =
   | "Canceled"
   | "Skipped";
 export type AutomationTriggerSource = "Scheduler" | "Manual";
+export type AutomationConcurrencyMode = "Serial" | "Parallel";
 
 export interface AutomationOptions {
   defaultStatus: AutomationStatus;
+  defaultConcurrencyMode: AutomationConcurrencyMode;
+  concurrencyModes: AutomationConcurrencyMode[];
   executionStatuses: AutomationExecutionStatus[];
   statuses: AutomationStatus[];
   timezones: string[];
@@ -21,6 +24,7 @@ export interface AutomationListItem {
   archivedAt: string | null;
   automationCode: string;
   cronExpression: string;
+  concurrencyMode: AutomationConcurrencyMode;
   description: string | null;
   executionSuccessCount: number;
   executionSuccessRate: number | null;
@@ -45,6 +49,7 @@ export interface AutomationDetailData {
   automationCode: string;
   createdAt: string;
   cronExpression: string;
+  concurrencyMode: AutomationConcurrencyMode;
   description: string | null;
   id: string;
   lastExecutionCode: string | null;
@@ -88,6 +93,7 @@ export interface AutomationPage<T> {
 export interface CreateAutomationPayload {
   agentCode?: string;
   cronExpression: string;
+  concurrencyMode?: AutomationConcurrencyMode;
   description?: string | null;
   modelCode?: string | null;
   name: string;
@@ -99,6 +105,7 @@ export interface CreateAutomationPayload {
 export interface UpdateAutomationPayload {
   agentCode?: string;
   cronExpression?: string;
+  concurrencyMode?: AutomationConcurrencyMode;
   description?: string | null;
   modelCode?: string | null;
   name?: string;

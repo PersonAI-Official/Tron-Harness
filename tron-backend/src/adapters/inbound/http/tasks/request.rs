@@ -151,6 +151,13 @@ pub struct TaskFlowWorkspaceQuery {
     pub workspace_code: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct TaskExecutionListQuery {
+    pub current: Option<usize>,
+    pub size: Option<usize>,
+}
+
 impl From<UpdateTaskStatusRequest> for UpdateTaskStatusCommand {
     fn from(request: UpdateTaskStatusRequest) -> Self {
         Self {

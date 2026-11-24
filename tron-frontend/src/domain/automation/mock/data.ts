@@ -3,6 +3,7 @@ import type {
   AutomationExecutionListItem,
   AutomationExecutionListQuery,
   AutomationExecutionStatus,
+  AutomationConcurrencyMode,
   AutomationLifecycleResult,
   AutomationListItem,
   AutomationListQuery,
@@ -24,6 +25,7 @@ interface AutomationSeed {
   automationCode: string;
   createdAt: string;
   cronExpression: string;
+  concurrencyMode: AutomationConcurrencyMode;
   description: string | null;
   id: string;
   lastExecutionCode: string | null;
@@ -44,6 +46,8 @@ interface AutomationSeed {
 
 const automationOptions: AutomationOptions = {
   defaultStatus: "Paused",
+  defaultConcurrencyMode: "Serial",
+  concurrencyModes: ["Serial", "Parallel"],
   executionStatuses: ["Pending", "Running", "Success", "Failed", "Canceled", "Skipped"],
   statuses: ["Active", "Paused", "Archived"],
   timezones: ["UTC"],
@@ -57,6 +61,7 @@ let automations: AutomationSeed[] = [
     agentCode: "main-agent",
     archivedAt: null,
     automationCode: "AUT-734600000000000001",
+    concurrencyMode: "Serial",
     createdAt: "2026-05-19T06:00:00Z",
     cronExpression: "0 9 * * *",
     description: "Summarize open delivery tasks and the most recent operator-visible risks.",
@@ -80,6 +85,7 @@ let automations: AutomationSeed[] = [
     agentCode: "main-agent",
     archivedAt: null,
     automationCode: "AUT-734600000000000002",
+    concurrencyMode: "Serial",
     createdAt: "2026-05-19T07:00:00Z",
     cronExpression: "*/30 * * * *",
     description: "Check whether queued workspaces need prompt regeneration before operator review.",
@@ -103,6 +109,7 @@ let automations: AutomationSeed[] = [
     agentCode: "main-agent",
     archivedAt: "2026-05-19T05:15:00Z",
     automationCode: "AUT-734600000000000003",
+    concurrencyMode: "Serial",
     createdAt: "2026-05-18T22:00:00Z",
     cronExpression: "0 */6 * * *",
     description: "Legacy audit fan-out kept only for historical inspection.",
@@ -126,6 +133,7 @@ let automations: AutomationSeed[] = [
     agentCode: "main-agent",
     archivedAt: null,
     automationCode: "AUT-734600000000000004",
+    concurrencyMode: "Serial",
     createdAt: "2026-05-19T07:15:00Z",
     cronExpression: "0 12 * * *",
     description: "Send the platform team a noon summary for their own workspace.",
@@ -247,6 +255,7 @@ export function createMockAutomation(payload: CreateAutomationPayload) {
   const cronExpression = requiredText(payload.cronExpression, "automation cron expression is invalid");
   const schedulerExpression = normalizedSchedulerExpression(cronExpression);
   const status = payload.status ?? automationOptions.defaultStatus;
+  const concurrencyMode = payload.concurrencyMode ?? automationOptions.defaultConcurrencyMode;
   const agentCode = optionalText(payload.agentCode) ?? "main-agent";
   const modelCode = optionalText(payload.modelCode);
 
@@ -261,6 +270,7 @@ export function createMockAutomation(payload: CreateAutomationPayload) {
     agentCode,
     archivedAt: null,
     automationCode,
+    concurrencyMode,
     createdAt: timestamp,
     cronExpression,
     description,
@@ -315,6 +325,7 @@ export function updateMockAutomation(
   const nextModelCode = payload.modelCode === undefined
     ? current.modelCode
     : optionalText(payload.modelCode);
+  const nextConcurrencyMode = payload.concurrencyMode ?? current.concurrencyMode;
 
   automations = automations.map((automation) => automation.automationCode !== automationCode
     ? automation
@@ -322,6 +333,7 @@ export function updateMockAutomation(
       ...automation,
       agentCode: nextAgentCode,
       cronExpression: nextCronExpression,
+      concurrencyMode: nextConcurrencyMode,
       description: nextDescription,
       modelCode: nextModelCode,
       name: nextName,
@@ -545,6 +557,7 @@ function toListItem(automation: AutomationSeed): AutomationListItem {
     archivedAt: automation.archivedAt,
     automationCode: automation.automationCode,
     cronExpression: automation.cronExpression,
+    concurrencyMode: automation.concurrencyMode,
     description: automation.description,
     executionSuccessCount: successCount,
     executionSuccessRate: totalCount ? successCount / totalCount : null,
@@ -572,6 +585,7 @@ function toDetail(automation?: AutomationSeed): AutomationDetailData {
       automationCode: "",
       createdAt: NOW,
       cronExpression: "",
+      concurrencyMode: "Serial",
       description: null,
       id: "",
       lastExecutionCode: null,

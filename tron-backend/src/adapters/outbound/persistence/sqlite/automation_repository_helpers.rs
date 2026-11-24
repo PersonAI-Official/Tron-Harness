@@ -4,6 +4,7 @@ use rusqlite::{Row, params};
 use crate::{
     domain::automation::{
         Automation, AutomationError, AutomationExecutionRecord,
+        automation_concurrency_mode_from_storage, automation_concurrency_mode_to_storage,
         automation_execution_status_from_storage, automation_execution_status_to_storage,
         automation_status_from_storage, automation_status_to_storage,
         automation_trigger_source_from_storage,
@@ -35,7 +36,7 @@ pub(super) fn update_automation_in_transaction(
     automation: &Automation,
 ) -> Result<(), AutomationError> {
     tx.execute(
-        "UPDATE automations SET workspace_code = ?2, name = ?3, description = ?4, agent_code = ?5, model_code = ?6, prompt_text = ?7, cron_expression = ?8, scheduler_expression = ?9, timezone = ?10, status = ?11, previous_status = ?12, last_execution_status = ?13, last_execution_code = ?14, last_execution_summary = ?15, last_started_at = ?16, last_finished_at = ?17, updated_at = ?18, archived_at = ?19 WHERE automation_code = ?1",
+        "UPDATE automations SET workspace_code = ?2, name = ?3, description = ?4, agent_code = ?5, model_code = ?6, prompt_text = ?7, cron_expression = ?8, scheduler_expression = ?9, timezone = ?10, status = ?11, previous_status = ?12, last_execution_status = ?13, last_execution_code = ?14, last_execution_summary = ?15, last_started_at = ?16, last_finished_at = ?17, updated_at = ?18, archived_at = ?19, concurrency_mode = ?20 WHERE automation_code = ?1",
         params![
             automation.automation_code,
             automation.workspace_code,
@@ -56,6 +57,7 @@ pub(super) fn update_automation_in_transaction(
             automation.last_finished_at.as_deref().map(timestamp_to_millis),
             timestamp_to_millis(&automation.updated_at),
             automation.archived_at.as_deref().map(timestamp_to_millis),
+            automation_concurrency_mode_to_storage(automation.concurrency_mode),
         ],
     ).map_err(storage_error)?;
     Ok(())
@@ -78,6 +80,8 @@ pub(super) fn row_to_automation(row: &Row<'_>) -> rusqlite::Result<Automation> {
         scheduler_expression: row.get(9)?,
         timezone: row.get(10)?,
         status: automation_status_from_storage(&status).map_err(automation_mapping_error)?,
+        concurrency_mode: automation_concurrency_mode_from_storage(&row.get::<_, String>(21)?)
+            .map_err(automation_mapping_error)?,
         previous_status: previous_status
             .as_deref()
             .map(automation_status_from_storage)

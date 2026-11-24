@@ -4,7 +4,7 @@ use crate::{
     application::automation::{
         CreateAutomationCommand, UpdateAutomationCommand, UpdateAutomationStatusCommand,
     },
-    domain::automation::AutomationStatus,
+    domain::automation::{AutomationConcurrencyMode, AutomationStatus},
 };
 
 #[derive(Debug, Deserialize)]
@@ -15,6 +15,7 @@ pub struct CreateAutomationRequest {
     pub description: Option<String>,
     pub agent_code: Option<String>,
     pub model_code: Option<String>,
+    pub concurrency_mode: Option<AutomationConcurrencyMode>,
     pub prompt: String,
     pub cron_expression: String,
     pub status: Option<AutomationStatus>,
@@ -28,6 +29,7 @@ impl From<CreateAutomationRequest> for CreateAutomationCommand {
             description: request.description,
             agent_code: request.agent_code,
             model_code: request.model_code,
+            concurrency_mode: request.concurrency_mode,
             prompt: request.prompt,
             cron_expression: request.cron_expression,
             status: request.status,
@@ -42,6 +44,7 @@ pub struct UpdateAutomationRequest {
     pub description: Option<Option<String>>,
     pub agent_code: Option<String>,
     pub model_code: Option<Option<String>>,
+    pub concurrency_mode: Option<AutomationConcurrencyMode>,
     pub prompt: Option<String>,
     pub cron_expression: Option<String>,
 }
@@ -53,6 +56,7 @@ impl From<UpdateAutomationRequest> for UpdateAutomationCommand {
             description: request.description,
             agent_code: request.agent_code,
             model_code: request.model_code,
+            concurrency_mode: request.concurrency_mode,
             prompt: request.prompt,
             cron_expression: request.cron_expression,
         }

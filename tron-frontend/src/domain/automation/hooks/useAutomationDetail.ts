@@ -16,6 +16,7 @@ function emptyAutomationDetail(automationCode: string): AutomationDetailData {
     automationCode,
     createdAt: "",
     cronExpression: "",
+    concurrencyMode: "Serial",
     description: null,
     id: "",
     lastExecutionCode: null,

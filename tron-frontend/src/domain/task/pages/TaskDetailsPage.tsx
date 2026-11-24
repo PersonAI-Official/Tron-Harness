@@ -26,6 +26,7 @@ import {
   SurfaceCard,
   useTabPanelConfig,
 } from "@/shared";
+import { useOpenRightSidebar } from "@/shared/hooks/useOpenRightSidebar";
 import { InspectorPanel } from "@/components/inspector";
 import { useToast } from "@/components/ui/toast";
 
@@ -52,7 +53,7 @@ import {
   useTaskOptions,
   useTaskWorkspaceOptions,
 } from "@/domain/task/hooks";
-import { TaskAppSelectionField, TaskExecutionModelSelect } from "@/domain/task/components";
+import { TaskAppSelectionField, TaskExecutionHistoryPanel, TaskExecutionModelSelect } from "@/domain/task/components";
 import {
   taskFlowStatusDisplayName,
   type TaskPriority,
@@ -124,6 +125,7 @@ export function TaskDetailsPage() {
   );
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const openRightSidebar = useOpenRightSidebar();
   const taskCode = searchParams.get("taskCode") || "TSK-SEED-FEATURE";
   const { task, setTask, refresh, loading } = useTaskDetail(taskCode);
   const options = useTaskOptions(task.workspaceCode);
@@ -382,7 +384,20 @@ export function TaskDetailsPage() {
     task,
   ]);
 
-  useTabPanelConfig({ rightPanel });
+  const rightPanelTabs = useMemo(() => ([
+    {
+      key: "task-history",
+      label: pageT("detail.executionHistory.title", "Task History"),
+      closable: false,
+      children: <TaskExecutionHistoryPanel taskCode={task.taskCode} />,
+    },
+  ]), [pageT, task.taskCode]);
+
+  useTabPanelConfig({ rightPanel, rightPanelTabs });
+
+  useEffect(() => {
+    openRightSidebar();
+  }, [openRightSidebar, taskCode]);
   const breadcrumbs = [
     { label: pageT("title", "Tasks"), href: "/tasks" },
     ...(task.parent ? [{ label: task.parent.taskCode, href: taskDetailHref(task.parent.taskCode) }] : []),
@@ -623,7 +638,7 @@ export function TaskDetailsPage() {
     try {
       const result = dataSource === "api" ? await executeTask(task.taskCode) : executeMockTask(task.taskCode);
       toast.success(pageT("messages.executionStarted", "Task {{code}} execution started", { code: result.taskCode }), { title: result.runCode });
-      navigate(`/chats?sessionCode=${encodeURIComponent(result.sessionCode)}&sourceTab=chat`);
+      navigate(`/chats?sessionCode=${encodeURIComponent(result.sessionCode)}&sourceTab=task`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("pages:tasks.detail.errors.execution", "Task execution failed"));
     } finally {

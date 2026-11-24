@@ -31,6 +31,19 @@ impl TaskService {
         })
     }
 
+    pub fn list_task_executions(
+        &self,
+        task_code: &str,
+        current: usize,
+        size: usize,
+    ) -> Result<PagedTaskRecords<TaskExecutionRecord>, TaskError> {
+        self.get_task_record(task_code)?;
+        let current = current.max(1);
+        let size = size.clamp(1, 100);
+        self.reader
+            .page_task_executions(task_code, current, size)
+    }
+
     pub fn kanban(&self, query: TaskListQuery) -> Result<Vec<TaskKanbanColumn>, TaskError> {
         let workspace_code = query
             .workspace_code
@@ -289,6 +302,93 @@ impl TaskService {
             .update_task(&task)?;
         let detail = self.get_task(task_code)?;
         self.publish_task_detail_event("task.status_updated", "Updated task status", &detail);
+        Ok(detail)
+    }
+
+    pub fn begin_task_execution(
+        &self,
+        task_code: &str,
+        session_code: &str,
+        execution_code: &str,
+    ) -> Result<TaskDetail, TaskError> {
+        let mut task = self.get_task_record(task_code)?;
+        if task.archived_at.is_some() {
+            return Err(TaskError::ArchivedMutationDenied);
+        }
+        let session_code =
+            normalized_required(session_code.to_owned()).ok_or(TaskError::InvalidRequest)?;
+        let execution_code =
+            normalized_required(execution_code.to_owned()).ok_or(TaskError::InvalidRequest)?;
+
+        if task.status == crate::domain::task::NOT_STARTED_STATUS_CODE {
+            let flow = self.get_task_flow(&task.flow_code)?;
+            if let Some(status) = flow
+                .statuses
+                .iter()
+                .find(|status| status.status_code == crate::domain::task::IN_PROGRESS_STATUS_CODE)
+                .or_else(|| {
+                    flow.statuses.iter().find(|status| {
+                        status.status_code != crate::domain::task::NOT_STARTED_STATUS_CODE
+                            && status.status_code != crate::domain::task::CLOSED_STATUS_CODE
+                    })
+                })
+            {
+                task.status = status.status_code.clone();
+            }
+        }
+
+        task.work_session_code = Some(session_code);
+        task.updated_at = current_timestamp();
+        let now = current_timestamp();
+        let execution = TaskExecutionRecord {
+            execution_code,
+            task_code: task.task_code.clone(),
+            session_code: task.work_session_code.clone(),
+            status: TaskExecutionStatus::Running,
+            summary: None,
+            started_at: now.clone(),
+            finished_at: None,
+            created_at: now,
+        };
+        self.repository
+            .lock()
+            .expect("task repository mutex poisoned")
+            .begin_task_execution(&task, &execution)?;
+        let detail = self.get_task(task_code)?;
+        self.publish_task_detail_event("task.execution_started", "Started task execution", &detail);
+        Ok(detail)
+    }
+
+    pub fn finish_task_execution(
+        &self,
+        task_code: &str,
+        execution_code: &str,
+        status: TaskExecutionStatus,
+        summary: Option<String>,
+    ) -> Result<TaskDetail, TaskError> {
+        let mut task = self.get_task_record(task_code)?;
+        let summary = summary.and_then(|value| normalized_required(value));
+        if status == TaskExecutionStatus::Success {
+            task.execution_result = summary.clone();
+        }
+        task.updated_at = current_timestamp();
+        let finished_at = current_timestamp();
+        self.repository
+            .lock()
+            .expect("task repository mutex poisoned")
+            .finish_task_execution(
+                &task,
+                execution_code,
+                status,
+                summary.as_deref(),
+                &finished_at,
+            )?;
+        let detail = self.get_task(task_code)?;
+        self.publish_task_detail_event(
+            "task.execution_recorded",
+            "Recorded task execution result",
+            &detail,
+        );
         Ok(detail)
     }
 

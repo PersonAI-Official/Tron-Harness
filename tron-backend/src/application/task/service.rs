@@ -8,9 +8,10 @@ use crate::{
     domain::{
         app::AppError,
         task::{
-            PagedTaskRecords, Task, TaskCodeLink, TaskDetail, TaskError, TaskFlow, TaskFlowDraft,
-            TaskKanbanColumn, TaskLifecycleResult, TaskListItem, TaskListQuery, TaskOptions,
-            TaskPriority, TaskSourceType, TaskSummary, TaskType, TaskUserAssignment,
+            PagedTaskRecords, Task, TaskCodeLink, TaskDetail, TaskError, TaskExecutionRecord,
+            TaskExecutionStatus, TaskFlow, TaskFlowDraft, TaskKanbanColumn, TaskLifecycleResult,
+            TaskListItem, TaskListQuery, TaskOptions, TaskPriority, TaskSourceType, TaskSummary,
+            TaskType, TaskUserAssignment,
             WorkspaceTaskFlow,
         },
         workspace::WorkspaceError,
@@ -101,6 +102,12 @@ pub trait TaskReadRepository: Send + Sync {
         window: Option<(usize, usize)>,
     ) -> Result<TaskReadPage, TaskError>;
     fn list_tasks(&self) -> Result<Vec<Task>, TaskError>;
+    fn page_task_executions(
+        &self,
+        task_code: &str,
+        current: usize,
+        size: usize,
+    ) -> Result<PagedTaskRecords<TaskExecutionRecord>, TaskError>;
     fn relations(
         &self,
         codes: &[String],
@@ -127,6 +134,19 @@ pub trait TaskRepository: Send {
         task_code: &str,
         session_code: &str,
     ) -> Result<bool, TaskError>;
+    fn begin_task_execution(
+        &mut self,
+        task: &Task,
+        execution: &TaskExecutionRecord,
+    ) -> Result<(), TaskError>;
+    fn finish_task_execution(
+        &mut self,
+        task: &Task,
+        execution_code: &str,
+        status: TaskExecutionStatus,
+        summary: Option<&str>,
+        finished_at: &str,
+    ) -> Result<(), TaskError>;
     fn list_task_flows(&mut self) -> Result<Vec<TaskFlow>, TaskError>;
     fn get_task_flow(&mut self, flow_code: &str) -> Result<Option<TaskFlow>, TaskError>;
     fn create_task_flow(&mut self, flow: &TaskFlow) -> Result<(), TaskError>;

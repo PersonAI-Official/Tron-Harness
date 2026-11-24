@@ -3,8 +3,9 @@ use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params, param
 use crate::{
     application::automation::AutomationRepository,
     domain::automation::{
-        Automation, AutomationError, AutomationExecutionDraft, AutomationExecutionRecord,
-        AutomationExecutionStats, AutomationExecutionStatus,
+        Automation, AutomationConcurrencyMode, AutomationError, AutomationExecutionDraft,
+        AutomationExecutionRecord, AutomationExecutionStats, AutomationExecutionStatus,
+        automation_concurrency_mode_from_storage, automation_concurrency_mode_to_storage,
         automation_execution_status_to_storage, automation_status_to_storage,
         automation_trigger_source_to_storage,
     },
@@ -39,7 +40,7 @@ impl AutomationRepository for SqliteAutomationRepositorySql<'_> {
         let mut statement = self
             .connection
             .prepare(
-                "SELECT id, automation_code, workspace_code, name, description, agent_code, model_code, prompt_text, cron_expression, scheduler_expression, timezone, status, previous_status, last_execution_status, last_execution_code, last_execution_summary, last_started_at, last_finished_at, created_at, updated_at, archived_at FROM automations ORDER BY id ASC",
+                "SELECT id, automation_code, workspace_code, name, description, agent_code, model_code, prompt_text, cron_expression, scheduler_expression, timezone, status, previous_status, last_execution_status, last_execution_code, last_execution_summary, last_started_at, last_finished_at, created_at, updated_at, archived_at, concurrency_mode FROM automations ORDER BY id ASC",
             )
             .map_err(storage_error)?;
         statement
@@ -104,7 +105,7 @@ impl AutomationRepository for SqliteAutomationRepositorySql<'_> {
 
     fn create_automation(&mut self, automation: &Automation) -> Result<(), AutomationError> {
         self.connection.execute(
-            "INSERT INTO automations (id, automation_code, workspace_code, name, description, agent_code, model_code, prompt_text, cron_expression, scheduler_expression, timezone, status, previous_status, last_execution_status, last_execution_code, last_execution_summary, last_started_at, last_finished_at, created_at, updated_at, archived_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21)",
+            "INSERT INTO automations (id, automation_code, workspace_code, name, description, agent_code, model_code, prompt_text, cron_expression, scheduler_expression, timezone, status, previous_status, last_execution_status, last_execution_code, last_execution_summary, last_started_at, last_finished_at, created_at, updated_at, archived_at, concurrency_mode) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22)",
             params![
                 automation.id.value(),
                 automation.automation_code,
@@ -127,6 +128,7 @@ impl AutomationRepository for SqliteAutomationRepositorySql<'_> {
                 timestamp_to_millis(&automation.created_at),
                 timestamp_to_millis(&automation.updated_at),
                 automation.archived_at.as_deref().map(timestamp_to_millis),
+                automation_concurrency_mode_to_storage(automation.concurrency_mode),
             ],
         ).map_err(storage_error)?;
         Ok(())
@@ -134,7 +136,7 @@ impl AutomationRepository for SqliteAutomationRepositorySql<'_> {
 
     fn update_automation(&mut self, automation: &Automation) -> Result<(), AutomationError> {
         self.connection.execute(
-            "UPDATE automations SET workspace_code = ?2, name = ?3, description = ?4, agent_code = ?5, model_code = ?6, prompt_text = ?7, cron_expression = ?8, scheduler_expression = ?9, timezone = ?10, status = ?11, previous_status = ?12, last_execution_status = ?13, last_execution_code = ?14, last_execution_summary = ?15, last_started_at = ?16, last_finished_at = ?17, updated_at = ?18, archived_at = ?19 WHERE automation_code = ?1",
+            "UPDATE automations SET workspace_code = ?2, name = ?3, description = ?4, agent_code = ?5, model_code = ?6, prompt_text = ?7, cron_expression = ?8, scheduler_expression = ?9, timezone = ?10, status = ?11, previous_status = ?12, last_execution_status = ?13, last_execution_code = ?14, last_execution_summary = ?15, last_started_at = ?16, last_finished_at = ?17, updated_at = ?18, archived_at = ?19, concurrency_mode = ?20 WHERE automation_code = ?1",
             params![
                 automation.automation_code,
                 automation.workspace_code,
@@ -155,6 +157,7 @@ impl AutomationRepository for SqliteAutomationRepositorySql<'_> {
                 automation.last_finished_at.as_deref().map(timestamp_to_millis),
                 timestamp_to_millis(&automation.updated_at),
                 automation.archived_at.as_deref().map(timestamp_to_millis),
+                automation_concurrency_mode_to_storage(automation.concurrency_mode),
             ],
         ).map_err(storage_error)?;
         Ok(())
@@ -234,6 +237,234 @@ impl AutomationRepository for SqliteAutomationRepositorySql<'_> {
         Ok(Some(record))
     }
 
+    fn link_execution_session(
+        &mut self,
+        automation_code: &str,
+        execution_code: &str,
+        session_code: &str,
+    ) -> Result<(), AutomationError> {
+        let tx = crate::adapters::outbound::persistence::sqlite::framework_storage::business_transaction(
+            &self.connection,
+            TransactionBehavior::Immediate,
+        )
+        .map_err(storage_error)?;
+        let changed = tx
+            .execute(
+                "UPDATE automation_execution_records
+                 SET session_code = ?3
+                 WHERE automation_code = ?1 AND execution_code = ?2 AND status = ?4",
+                params![
+                    automation_code,
+                    execution_code,
+                    session_code,
+                    automation_execution_status_to_storage(AutomationExecutionStatus::Running),
+                ],
+            )
+            .map_err(storage_error)?;
+        if changed == 0 {
+            tx.commit().map_err(storage_error)?;
+            return Err(AutomationError::NotFound);
+        }
+        tx.commit().map_err(storage_error)?;
+        Ok(())
+    }
+
+    fn recover_interrupted_executions(
+        &mut self,
+        finished_at: &str,
+    ) -> Result<usize, AutomationError> {
+        let tx = crate::adapters::outbound::persistence::sqlite::framework_storage::business_transaction(
+            &self.connection,
+            TransactionBehavior::Immediate,
+        )
+        .map_err(storage_error)?;
+        let running_status =
+            automation_execution_status_to_storage(AutomationExecutionStatus::Running);
+        let canceled_status =
+            automation_execution_status_to_storage(AutomationExecutionStatus::Canceled);
+        let running_records = {
+            let mut statement = tx
+                .prepare(
+                    "SELECT automation_code, execution_code
+                     FROM automation_execution_records
+                     WHERE status = ?1",
+                )
+                .map_err(storage_error)?;
+            statement
+                .query_map([running_status], |row| {
+                    Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+                })
+                .map_err(storage_error)?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(storage_error)?
+        };
+        let finished_at_millis = timestamp_to_millis(finished_at);
+        for (automation_code, execution_code) in &running_records {
+            let changed = tx
+                .execute(
+                    "UPDATE automation_execution_records
+                     SET status = ?3, summary = NULL, finished_at = ?4
+                     WHERE automation_code = ?1 AND execution_code = ?2 AND status = ?5",
+                    params![
+                        automation_code,
+                        execution_code,
+                        canceled_status,
+                        finished_at_millis,
+                        running_status,
+                    ],
+                )
+                .map_err(storage_error)?;
+            if changed > 0 {
+                tx.execute(
+                    "UPDATE automations
+                     SET last_execution_status = ?3,
+                         last_execution_summary = NULL,
+                         last_finished_at = ?4,
+                         updated_at = ?4
+                     WHERE automation_code = ?1 AND last_execution_code = ?2",
+                    params![
+                        automation_code,
+                        execution_code,
+                        canceled_status,
+                        finished_at_millis,
+                    ],
+                )
+                .map_err(storage_error)?;
+            }
+        }
+        tx.commit().map_err(storage_error)?;
+        Ok(running_records.len())
+    }
+
+    fn prepare_serial_execution(
+        &mut self,
+        automation_code: &str,
+        execution_code: &str,
+        finished_at: &str,
+    ) -> Result<Option<Vec<AutomationExecutionRecord>>, AutomationError> {
+        let tx = crate::adapters::outbound::persistence::sqlite::framework_storage::business_transaction(
+            &self.connection,
+            TransactionBehavior::Immediate,
+        )
+        .map_err(storage_error)?;
+        let current = tx
+            .query_row(
+                "SELECT id, execution_code, automation_code, workspace_code, session_code, trigger_source, status, summary, scheduled_at, started_at, finished_at, created_at
+                 FROM automation_execution_records
+                 WHERE automation_code = ?1 AND execution_code = ?2",
+                params![automation_code, execution_code],
+                row_to_execution_record,
+            )
+            .optional()
+            .map_err(storage_error)?;
+        let Some(current) =
+            current.filter(|record| record.status == AutomationExecutionStatus::Running)
+        else {
+            tx.commit().map_err(storage_error)?;
+            return Ok(None);
+        };
+        let current_id = current.id.value();
+        let configured_mode = tx
+            .query_row(
+                "SELECT concurrency_mode FROM automations WHERE automation_code = ?1",
+                [automation_code],
+                |row| row.get::<_, String>(0),
+            )
+            .map_err(storage_error)?;
+        if automation_concurrency_mode_from_storage(&configured_mode)
+            .map_err(|_| AutomationError::StorageFailure)?
+            != AutomationConcurrencyMode::Serial
+        {
+            tx.commit().map_err(storage_error)?;
+            return Ok(Some(Vec::new()));
+        }
+        let has_newer_execution: bool = tx
+            .query_row(
+                "SELECT EXISTS(
+                    SELECT 1 FROM automation_execution_records
+                    WHERE automation_code = ?1 AND id > ?2
+                 )",
+                params![automation_code, current_id],
+                |row| row.get(0),
+            )
+            .map_err(storage_error)?;
+        let finished_at_millis = timestamp_to_millis(finished_at);
+        let canceled_status =
+            automation_execution_status_to_storage(AutomationExecutionStatus::Canceled);
+        if has_newer_execution {
+            tx.execute(
+                "UPDATE automation_execution_records
+                 SET status = ?3, summary = NULL, finished_at = ?4
+                 WHERE automation_code = ?1 AND execution_code = ?2 AND status = ?5",
+                params![
+                    automation_code,
+                    execution_code,
+                    canceled_status,
+                    finished_at_millis,
+                    automation_execution_status_to_storage(AutomationExecutionStatus::Running),
+                ],
+            )
+            .map_err(storage_error)?;
+            tx.commit().map_err(storage_error)?;
+            return Ok(None);
+        }
+
+        let previous_running = {
+            let mut statement = tx
+                .prepare(
+                    "SELECT id, execution_code, automation_code, workspace_code, session_code, trigger_source, status, summary, scheduled_at, started_at, finished_at, created_at
+                     FROM automation_execution_records
+                     WHERE automation_code = ?1 AND id < ?2 AND status = ?3
+                     ORDER BY id DESC",
+                )
+                .map_err(storage_error)?;
+            statement
+                .query_map(
+                    params![
+                        automation_code,
+                        current_id,
+                        automation_execution_status_to_storage(AutomationExecutionStatus::Running),
+                    ],
+                    row_to_execution_record,
+                )
+                .map_err(storage_error)?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(storage_error)?
+        };
+        for previous in &previous_running {
+            tx.execute(
+                "UPDATE automation_execution_records
+                 SET status = ?3, summary = NULL, finished_at = ?4
+                 WHERE automation_code = ?1 AND execution_code = ?2 AND status = ?5",
+                params![
+                    automation_code,
+                    previous.execution_code,
+                    canceled_status,
+                    finished_at_millis,
+                    automation_execution_status_to_storage(AutomationExecutionStatus::Running),
+                ],
+            )
+            .map_err(storage_error)?;
+            tx.execute(
+                "UPDATE automations
+                 SET last_execution_status = ?3,
+                     last_execution_summary = NULL,
+                     last_finished_at = ?4,
+                     updated_at = ?4
+                 WHERE automation_code = ?1 AND last_execution_code = ?2",
+                params![
+                    automation_code,
+                    previous.execution_code,
+                    canceled_status,
+                    finished_at_millis,
+                ],
+            )
+            .map_err(storage_error)?;
+        }
+        tx.commit().map_err(storage_error)?;
+        Ok(Some(previous_running))
+    }
+
     fn complete_execution_record(
         &mut self,
         automation_code: &str,
@@ -251,7 +482,7 @@ impl AutomationRepository for SqliteAutomationRepositorySql<'_> {
             .execute(
                 "UPDATE automation_execution_records
                  SET status = ?3, summary = ?4, session_code = COALESCE(?5, session_code), finished_at = ?6
-                 WHERE automation_code = ?1 AND execution_code = ?2",
+                 WHERE automation_code = ?1 AND execution_code = ?2 AND status = ?7",
                 params![
                     automation_code,
                     execution_code,
@@ -259,6 +490,7 @@ impl AutomationRepository for SqliteAutomationRepositorySql<'_> {
                     effective_summary.as_deref(),
                     session_code.as_deref(),
                     timestamp_to_millis(finished_at),
+                    automation_execution_status_to_storage(AutomationExecutionStatus::Running),
                 ],
             )
             .map_err(storage_error)?;
@@ -449,6 +681,59 @@ impl AutomationRepository for SqliteAutomationRepository {
         self.connection.call(
             move |connection| {
                 SqliteAutomationRepositorySql { connection }.record_execution(&automation, &draft)
+            },
+            || storage_error(rusqlite::Error::InvalidQuery),
+        )
+    }
+    fn link_execution_session(
+        &mut self,
+        automation_code: &str,
+        execution_code: &str,
+        session_code: &str,
+    ) -> Result<(), AutomationError> {
+        let automation_code = automation_code.to_owned();
+        let execution_code = execution_code.to_owned();
+        let session_code = session_code.to_owned();
+        self.connection.call(
+            move |connection| {
+                SqliteAutomationRepositorySql { connection }.link_execution_session(
+                    &automation_code,
+                    &execution_code,
+                    &session_code,
+                )
+            },
+            || storage_error(rusqlite::Error::InvalidQuery),
+        )
+    }
+    fn recover_interrupted_executions(
+        &mut self,
+        finished_at: &str,
+    ) -> Result<usize, AutomationError> {
+        let finished_at = finished_at.to_owned();
+        self.connection.call(
+            move |connection| {
+                SqliteAutomationRepositorySql { connection }
+                    .recover_interrupted_executions(&finished_at)
+            },
+            || storage_error(rusqlite::Error::InvalidQuery),
+        )
+    }
+    fn prepare_serial_execution(
+        &mut self,
+        automation_code: &str,
+        execution_code: &str,
+        finished_at: &str,
+    ) -> Result<Option<Vec<AutomationExecutionRecord>>, AutomationError> {
+        let automation_code = automation_code.to_owned();
+        let execution_code = execution_code.to_owned();
+        let finished_at = finished_at.to_owned();
+        self.connection.call(
+            move |connection| {
+                SqliteAutomationRepositorySql { connection }.prepare_serial_execution(
+                    &automation_code,
+                    &execution_code,
+                    &finished_at,
+                )
             },
             || storage_error(rusqlite::Error::InvalidQuery),
         )

@@ -119,6 +119,26 @@ pub struct TaskExecutionResult {
     pub summary: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub enum TaskExecutionStatus {
+    Running,
+    Success,
+    Failed,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskExecutionRecord {
+    pub execution_code: String,
+    pub task_code: String,
+    pub session_code: Option<String>,
+    pub status: TaskExecutionStatus,
+    pub summary: Option<String>,
+    pub started_at: String,
+    pub finished_at: Option<String>,
+    pub created_at: String,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PagedTaskRecords<T> {

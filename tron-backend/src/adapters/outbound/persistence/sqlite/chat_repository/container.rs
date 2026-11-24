@@ -94,6 +94,7 @@ impl SqliteChatRepository {
                         ("chat_session_auto_model_routes", "DELETE FROM chat_session_auto_model_routes WHERE session_code IN (SELECT value FROM json_each(?1))"),
                         ("provider_model_run_snapshots", "DELETE FROM provider_model_run_snapshots WHERE session_code IN (SELECT value FROM json_each(?1))"),
                         ("automation_execution_records", "UPDATE automation_execution_records SET session_code=NULL WHERE session_code IN (SELECT value FROM json_each(?1))"),
+                        ("task_execution_records", "UPDATE task_execution_records SET session_code=NULL WHERE session_code IN (SELECT value FROM json_each(?1))"),
                     ] {
                         if c.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name=?1)",[table],|r|r.get::<_,bool>(0))? { c.execute(sql,[&selected])?; }
                     }

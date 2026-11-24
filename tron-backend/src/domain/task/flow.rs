@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 pub const DEFAULT_TASK_FLOW_CODE: &str = "DEFAULT";
 pub const NOT_STARTED_STATUS_CODE: &str = "NOT_STARTED";
+pub const IN_PROGRESS_STATUS_CODE: &str = "IN_PROGRESS";
 pub const CLOSED_STATUS_CODE: &str = "CLOSED";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

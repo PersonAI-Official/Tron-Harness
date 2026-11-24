@@ -25,6 +25,7 @@ import {
 import { SelectInput } from "@/components/forms";
 import { SearchField } from "@/components/search-field";
 import {
+  useTabPanelConfig,
   useWorkspaceSpaces,
 } from "@/shared";
 import { useToast } from "@/components/ui/toast";
@@ -69,6 +70,7 @@ import { AgentAvatar } from "@/domain/agent/components/AgentAvatarPicker";
 import { fetchWorkspaceInternalAgents } from "@/domain/agent/api";
 import { listWorkspaceInternalAgentsMock } from "@/domain/agent/mock";
 import type { WorkspaceInternalAgentRecord } from "@/domain/agent/model";
+import { DEFAULT_TAB_ID, useTabStore } from "@/store/tabStore";
 
 type BoardScalePreset = "fit" | "100" | "90" | "80" | "70" | "60" | "50";
 type ArchivedFilter = "all" | "archived" | "active";
@@ -86,6 +88,7 @@ const BOARD_SCALE_PRESETS: Array<{ label: string; value: Exclude<BoardScalePrese
   { label: "60%", value: "60" },
   { label: "50%", value: "50" },
 ];
+const EMPTY_RIGHT_PANEL_TABS: never[] = [];
 
 function resolveStoredBoardScale(value: string | null): BoardScalePreset {
   if (value === "100" || value === "90" || value === "80" || value === "70" || value === "60" || value === "50") return value;
@@ -338,6 +341,8 @@ export function TasksKanbanPage() {
   const [boardViewportWidth, setBoardViewportWidth] = useState(0);
   const [workspaceInternalAgents, setWorkspaceInternalAgents] = useState<WorkspaceInternalAgentRecord[]>([]);
   const navigate = useNavigate();
+  const activeTabId = useTabStore((state) => state.activeTabId ?? DEFAULT_TAB_ID);
+  const updateRightPanelState = useTabStore((state) => state.updateRightPanelState);
   const toast = useToast();
   const { selectedPrimarySpace, selectedSecondarySpace } = useWorkspaceSpaces();
   const boardViewportRef = useRef<HTMLDivElement | null>(null);
@@ -348,6 +353,12 @@ export function TasksKanbanPage() {
   const workspaceCode = activeWorkspace?.workspaceCode ?? "";
   const options = useTaskOptions(workspaceCode);
   const [workspaceFlowCode, setWorkspaceFlowCode] = useState("");
+
+  useTabPanelConfig({ rightPanel: null, rightPanelTabs: EMPTY_RIGHT_PANEL_TABS });
+
+  useEffect(() => {
+    updateRightPanelState(activeTabId, { open: false });
+  }, [activeTabId, updateRightPanelState]);
 
   useEffect(() => {
     if (!workspaceCode) {
@@ -577,7 +588,7 @@ export function TasksKanbanPage() {
         t("pages:tasks.messages.executionStarted", "Task {{code}} execution started", { code: result.taskCode }),
         { title: result.runCode },
       );
-      navigate(`/chats?sessionCode=${encodeURIComponent(result.sessionCode)}&sourceTab=chat`);
+      navigate(`/chats?sessionCode=${encodeURIComponent(result.sessionCode)}&sourceTab=task`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("pages:tasks.detail.errors.execution", "Task execution failed"));
     } finally {

@@ -1,4 +1,5 @@
 import { isKnownAppCode } from "@/domain/app/mock";
+import { appendMockTaskRunTranscript, createMockChatSession } from "@/domain/chat/mock/data";
 import type { TaskListQuery } from "@/domain/task/api";
 import {
   compareTaskListItems,
@@ -6,6 +7,7 @@ import {
   type KanbanColumn,
   type QuickReference,
   type TaskDetailData,
+  type TaskExecutionRecord,
   type TaskExecutionResult,
   type TaskFlow,
   type TaskFlowPayload,
@@ -37,6 +39,7 @@ const defaultFlow: TaskFlow = {
 };
 let taskFlows: TaskFlow[] = [defaultFlow];
 const workspaceFlowCodes: Record<string, string> = { TRON_CORE: defaultFlow.flowCode };
+let taskExecutionRecords: TaskExecutionRecord[] = [];
 
 function flowForWorkspace(workspaceCode: string) {
   const flowCode = workspaceFlowCodes[workspaceCode] ?? defaultFlow.flowCode;
@@ -370,7 +373,34 @@ export function executeMockTask(taskCode: string): TaskExecutionResult {
     throw new Error("restore archived task before executing it");
   }
   const runSequence = Date.now();
+  const runCode = `RUN-${runSequence}`;
   const summary = `Mock execution completed for ${task.taskCode}.`;
+  const session = createMockChatSession({
+    taskCode: task.taskCode,
+    workspaceCode: task.workspaceCode,
+    title: task.title,
+    agentCode: task.agentCode || "main-agent",
+  });
+  const startedAt = new Date(runSequence).toISOString();
+  taskExecutionRecords = [
+    {
+      createdAt: startedAt,
+      executionCode: runCode,
+      finishedAt: startedAt,
+      sessionCode: session.sessionCode,
+      startedAt,
+      status: "Success",
+      summary,
+      taskCode: task.taskCode,
+    },
+    ...taskExecutionRecords,
+  ];
+  appendMockTaskRunTranscript(
+    session.sessionCode,
+    runCode,
+    task.description || task.title,
+    summary,
+  );
   tasks = tasks.map((item) => item.taskCode === task.taskCode ? {
     ...item,
     executionResult: summary,
@@ -381,10 +411,25 @@ export function executeMockTask(taskCode: string): TaskExecutionResult {
   return {
     agentCode: task.agentCode || "main-agent",
     modelCode: task.modelCode,
-    runCode: `RUN-${runSequence}`,
-    sessionCode: `SESSION-${runSequence}`,
+    runCode,
+    sessionCode: session.sessionCode,
     summary,
     taskCode: task.taskCode,
+  };
+}
+
+export function listMockTaskExecutionPage(
+  taskCode: string,
+  current: number,
+  size: number,
+) {
+  const records = taskExecutionRecords.filter((record) => record.taskCode === taskCode);
+  const start = (Math.max(1, current) - 1) * Math.max(1, size);
+  return {
+    current: Math.max(1, current),
+    records: records.slice(start, start + Math.max(1, size)),
+    size: Math.max(1, size),
+    total: records.length,
   };
 }
 

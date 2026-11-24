@@ -11,6 +11,8 @@ import { getServiceDataSource } from "@/shared/api/serviceConfig";
 function emptyAutomationOptions(): AutomationOptions {
   return {
     defaultStatus: "Active",
+    defaultConcurrencyMode: "Serial",
+    concurrencyModes: ["Serial", "Parallel"],
     executionStatuses: [],
     statuses: [],
     timezones: [],

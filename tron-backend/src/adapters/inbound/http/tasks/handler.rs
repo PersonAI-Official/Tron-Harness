@@ -26,7 +26,9 @@ use crate::{
     domain::{
         chat::ChatSessionSourceType,
         prompt::PromptRuntimeProvider,
-        task::{TaskError, TaskExecutionResult, TaskFlowDraft, TaskListQuery},
+        task::{
+            TaskError, TaskExecutionResult, TaskExecutionStatus, TaskFlowDraft, TaskListQuery,
+        },
     },
     response::ApiResponse,
 };
@@ -34,8 +36,8 @@ use crate::{
 use super::{
     error_mapper::{task_error_response, task_prompt_render_error_response},
     request::{
-        CreateTaskRequest, TaskFlowRequest, TaskFlowWorkspaceQuery, UpdateTaskRequest,
-        UpdateTaskStatusRequest, WorkspaceTaskFlowRequest,
+        CreateTaskRequest, TaskExecutionListQuery, TaskFlowRequest, TaskFlowWorkspaceQuery,
+        UpdateTaskRequest, UpdateTaskStatusRequest, WorkspaceTaskFlowRequest,
     },
 };
 
@@ -269,11 +271,17 @@ pub async fn execute_task(
     };
     let runtime = match resolve_chat_agent_runtime(&state, &session, &request) {
         Ok(runtime) => runtime,
-        Err(error) => return chat_send_error_response(error),
+        Err(error) => {
+            let _ = state.chats.delete_session(&session.session_code);
+            return chat_send_error_response(error);
+        }
     };
     let prepared_model = match prepare_send_model(&state, &session, &request, &runtime) {
         Ok(model) => model,
-        Err(error) => return chat_send_error_response(error),
+        Err(error) => {
+            let _ = state.chats.delete_session(&session.session_code);
+            return chat_send_error_response(error);
+        }
     };
     let auto_model_route = prepared_model.auto_route;
     let auto_model_router = prepared_model.auto_router;
@@ -299,14 +307,22 @@ pub async fn execute_task(
     .with_active_runs(state.active_runs.clone())
     .with_prompt_service(state.prompts.clone())
     .with_auto_model_route(auto_model_route, auto_model_router);
-    let chats = state.chats.clone();
     let session_code = session.session_code.clone();
+    if let Err(error) = state
+        .tasks
+        .begin_task_execution(&task.task_code, &session_code, &run_code)
+    {
+        let _ = state.chats.delete_session(&session_code);
+        return task_error_response(error);
+    }
+    let chats = state.chats.clone();
     let background_session_code = session_code.clone();
     let user_code = auth.user().user_code.clone();
     let locale = auth.locale.clone();
     let llm_runtime = state.llm_runtime.clone();
     let task_code_for_log = task.task_code.clone();
     let task_code_for_result = task.task_code.clone();
+    let execution_code_for_result = run_code.clone();
     let tasks = state.tasks.clone();
     crate::app::telemetry::spawn_traced(async move {
         match chats
@@ -322,15 +338,28 @@ pub async fn execute_task(
             .await
         {
             Ok(result) => {
-                if let Err(error) =
-                    tasks.record_execution_result(&task_code_for_result, result.run.final_output)
-                {
+                if let Err(error) = tasks.finish_task_execution(
+                    &task_code_for_result,
+                    &execution_code_for_result,
+                    TaskExecutionStatus::Success,
+                    Some(result.run.final_output),
+                ) {
                     tracing::error!(
                         "task execution {task_code_for_log} result persistence failed: {error:?}"
                     );
                 }
             }
             Err(error) => {
+                if let Err(persist_error) = tasks.finish_task_execution(
+                    &task_code_for_result,
+                    &execution_code_for_result,
+                    TaskExecutionStatus::Failed,
+                    None,
+                ) {
+                    tracing::error!(
+                        "task execution {task_code_for_log} failure persistence failed: {persist_error:?}"
+                    );
+                }
                 tracing::error!("task execution {task_code_for_log} failed: {error:?}");
             }
         }
@@ -347,6 +376,21 @@ pub async fn execute_task(
         summary: tron_i18n::t!("tasks.execution_started", locale = &auth.locale).into_owned(),
     }))
     .into_response()
+}
+
+pub async fn list_task_executions(
+    State(tasks): State<TaskService>,
+    Path(task_code): Path<String>,
+    Query(query): Query<TaskExecutionListQuery>,
+) -> Response {
+    match tasks.list_task_executions(
+        &task_code,
+        query.current.unwrap_or(1),
+        query.size.unwrap_or(15),
+    ) {
+        Ok(page) => Json(ApiResponse::success(page)).into_response(),
+        Err(error) => task_error_response(error),
+    }
 }
 
 pub async fn delete_task(

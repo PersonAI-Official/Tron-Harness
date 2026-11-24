@@ -79,11 +79,6 @@ function automationDescriptionText(row: AutomationListItem, fallback: string) {
   return row.description?.trim() || fallback;
 }
 
-function automationExecutionsHref(automationCode: string) {
-  const params = new URLSearchParams({ automationCode });
-  return `/automations/executions?${params.toString()}`;
-}
-
 interface RowMenuState {
   automationCode: string;
   left: number;
@@ -488,7 +483,7 @@ export function AutomationsPage() {
               className="block w-full rounded-lg px-3 py-2 text-left hover:bg-[var(--color-hover-surface)]"
               onClick={() => {
                 setOpenRowMenu(null);
-                navigate(automationExecutionsHref(openMenuRow.automationCode));
+                navigate(`/automations/detail?automationCode=${encodeURIComponent(openMenuRow.automationCode)}`);
               }}
             >
               {pt("Execution instances")}

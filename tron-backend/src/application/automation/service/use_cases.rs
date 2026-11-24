@@ -2,6 +2,11 @@ use super::*;
 
 impl AutomationService {
     pub fn bootstrap_scheduler(&self) -> Result<(), AutomationError> {
+        let finished_at = current_timestamp();
+        let recovered = self.recover_interrupted_executions(&finished_at)?;
+        if recovered > 0 {
+            tracing::warn!(recovered, "Recovered interrupted automation executions");
+        }
         for automation in self
             .all_automations()?
             .into_iter()
@@ -60,6 +65,7 @@ impl AutomationService {
         let scheduler_expression = normalized_scheduler_expression(&cron_expression)?;
         let now = current_timestamp();
         let status = command.status.unwrap_or(AutomationStatus::Paused);
+        let concurrency_mode = command.concurrency_mode.unwrap_or_default();
         if status == AutomationStatus::Archived {
             return Err(AutomationError::InvalidStatus);
         }
@@ -82,6 +88,7 @@ impl AutomationService {
             scheduler_expression,
             timezone: "UTC".into(),
             status,
+            concurrency_mode,
             previous_status: None,
             last_execution_status: None,
             last_execution_code: None,
@@ -138,6 +145,9 @@ impl AutomationService {
         }
         if let Some(model_code) = command.model_code {
             automation.model_code = model_code.and_then(|value| optional_trimmed(Some(value)));
+        }
+        if let Some(concurrency_mode) = command.concurrency_mode {
+            automation.concurrency_mode = concurrency_mode;
         }
         if let Some(prompt) = command.prompt {
             automation.prompt_text =

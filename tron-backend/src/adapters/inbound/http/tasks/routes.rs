@@ -8,7 +8,8 @@ use crate::app::AppState;
 use super::handler::{
     archive_task, create_task, create_task_flow, delete_task, delete_task_flow, execute_task,
     get_task, get_task_flow, get_workspace_task_flow, kanban, list_task_flows, list_tasks, options,
-    patch_status, patch_task, restore_task, switch_workspace_task_flow, update_task_flow,
+    list_task_executions, patch_status, patch_task, restore_task, switch_workspace_task_flow,
+    update_task_flow,
 };
 
 pub fn routes() -> Router<AppState> {
@@ -35,6 +36,10 @@ pub fn routes() -> Router<AppState> {
             get(get_task).patch(patch_task).delete(delete_task),
         )
         .route("/api/v1/tasks/{task_code}/execute", post(execute_task))
+        .route(
+            "/api/v1/tasks/{task_code}/executions",
+            get(list_task_executions),
+        )
         .route(
             "/api/v1/tasks/{task_code}/status",
             post(patch_status).patch(patch_status),

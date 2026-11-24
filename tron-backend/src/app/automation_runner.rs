@@ -1,10 +1,11 @@
 use crate::{
     application::{
         agent::{
-            AgentInvocationService, AgentManagementService, build_system_runtime_model_config,
+            AgentInvocationError, AgentInvocationService, AgentManagementService,
+            build_system_runtime_model_config,
         },
         automation::{AutomationExecutionRunner, AutomationService},
-        chat::{ChatService, CreateChatSessionCommand, SendChatMessageCommand},
+        chat::{ChatSendError, ChatService, CreateChatSessionCommand, SendChatMessageCommand},
         model::ModelService,
     },
     domain::{
@@ -105,6 +106,7 @@ impl AutomationExecutionRunner for MainAgentAutomationRunner {
             let result = run_automation_with_main_agent(
                 automation.clone(),
                 execution.clone(),
+                automations.clone(),
                 chats,
                 agent_management,
                 models,
@@ -114,7 +116,7 @@ impl AutomationExecutionRunner for MainAgentAutomationRunner {
             .instrument(log_span)
             .with_context(context.clone())
             .await;
-            if result.is_err() {
+            if matches!(&result, Err(AutomationRunError::Failed(_))) {
                 context
                     .span()
                     .set_status(Status::error("Automation execution failed"));
@@ -122,25 +124,34 @@ impl AutomationExecutionRunner for MainAgentAutomationRunner {
             let (status, summary, session_code) = match result {
                 Ok(result) => (
                     AutomationExecutionStatus::Success,
-                    result.summary,
+                    Some(result.summary),
                     Some(result.session_code),
                 ),
-                Err(summary) => (AutomationExecutionStatus::Failed, summary, None),
+                Err(AutomationRunError::Failed(summary)) => {
+                    (AutomationExecutionStatus::Failed, Some(summary), None)
+                }
+                Err(AutomationRunError::Canceled) => {
+                    (AutomationExecutionStatus::Canceled, None, None)
+                }
             };
             let _ = automations.complete_execution(
                 &automation.automation_code,
                 &execution.execution_code,
                 status,
-                Some(summary),
+                summary,
                 session_code,
             );
             if status == AutomationExecutionStatus::Failed {
                 tracing::error!(trace_id=%ids.trace_id(), span_id=%ids.span_id(), "Automation execution failed");
+            } else if status == AutomationExecutionStatus::Canceled {
+                tracing::info!(trace_id=%ids.trace_id(), span_id=%ids.span_id(), "Automation execution canceled");
             } else {
                 tracing::info!(trace_id=%ids.trace_id(), span_id=%ids.span_id(), "Automation execution finished");
             }
             guard.complete(if status == AutomationExecutionStatus::Failed {
                 "error"
+            } else if status == AutomationExecutionStatus::Canceled {
+                "cancelled"
             } else {
                 "completed"
             });
@@ -154,15 +165,48 @@ struct AutomationRunResult {
     summary: String,
 }
 
+enum AutomationRunError {
+    Failed(String),
+    Canceled,
+}
+
+impl From<String> for AutomationRunError {
+    fn from(summary: String) -> Self {
+        Self::Failed(summary)
+    }
+}
+
 async fn run_automation_with_main_agent(
     automation: Automation,
     execution: AutomationExecutionRecord,
+    automations: AutomationService,
     chats: ChatService,
     agent_management: AgentManagementService,
     models: ModelService,
     model_providers: crate::application::model_provider::ModelProviderService,
     agent: AgentInvocationService,
-) -> Result<AutomationRunResult, String> {
+) -> Result<AutomationRunResult, AutomationRunError> {
+    let Some(previous) = automations
+        .prepare_serial_execution(&automation.automation_code, &execution.execution_code)
+        .map_err(|error| {
+            AutomationRunError::Failed(format!("Automation execution setup failed: {error:?}"))
+        })?
+    else {
+        return Err(AutomationRunError::Canceled);
+    };
+    let previous_sessions = previous
+        .into_iter()
+        .filter_map(|record| record.session_code)
+        .collect::<Vec<_>>();
+    chats
+        .stop_sessions_unchecked(&previous_sessions)
+        .await
+        .map_err(|error| {
+            AutomationRunError::Failed(format!(
+                "Could not stop the previous automation run: {error:?}"
+            ))
+        })?;
+    let mut agent = agent;
     let agent_code = automation.agent_code.trim();
     let effective_agent_code = if agent_code.is_empty() {
         AUTOMATION_AGENT_CODE
@@ -199,7 +243,13 @@ async fn run_automation_with_main_agent(
             None,
         )
         .map_err(|error| format!("Automation chat session creation failed: {error}"))?;
-    let mut agent = agent;
+    automations
+        .link_execution_session(
+            &automation.automation_code,
+            &execution.execution_code,
+            &session.session_code,
+        )
+        .map_err(|error| format!("Automation execution session link failed: {error:?}"))?;
     let (model, model_code, system_model_id) = if uses_main_agent {
         let requested_model = automation
             .model_code
@@ -268,10 +318,10 @@ async fn run_automation_with_main_agent(
                 )
             })?;
         if !system_agent.enabled || !system_agent.available {
-            return Err(format!(
+            return Err(AutomationRunError::Failed(format!(
                 "Automation agent `{}` is disabled or unavailable for workspace {}.",
                 resolved_runtime.agent_code, automation.workspace_code
-            ));
+            )));
         }
         let context_window_tokens = if system_agent.models.is_empty() {
             None
@@ -329,7 +379,12 @@ async fn run_automation_with_main_agent(
             agent,
         )
         .await
-        .map_err(|error| format!("Main agent automation run failed: {error:?}"))?;
+        .map_err(|error| match error {
+            ChatSendError::Agent(AgentInvocationError::RunStopped) => AutomationRunError::Canceled,
+            error => {
+                AutomationRunError::Failed(format!("Main agent automation run failed: {error:?}"))
+            }
+        })?;
     let session_code = session.session_code.clone();
     let final_reply = result.run.final_output.trim();
     Ok(AutomationRunResult {

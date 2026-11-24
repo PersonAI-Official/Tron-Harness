@@ -289,14 +289,22 @@ const goalsBySession: Record<string, ChatSessionGoalView | null> = {
 };
 
 export function getChatSessionGroups(): ChatSessionGroup[] {
+  const taskCodes = Array.from(new Set(
+    sessions
+      .filter((session) => session.taskCode && session.status === "ACTIVE")
+      .map((session) => session.taskCode as string),
+  ));
   return [
-    {
-      taskCode: "TASK-8842",
-      taskTitle: "Auth latency rollback",
-      sourceCode: "TASK-8842",
-      sourceType: "Task",
-      sessions: sessions.filter((session) => session.taskCode === "TASK-8842" && session.status === "ACTIVE"),
-    },
+    ...taskCodes.map((taskCode) => {
+      const taskSessions = sessions.filter((session) => session.taskCode === taskCode && session.status === "ACTIVE");
+      return {
+        taskCode,
+        taskTitle: taskCode === "TASK-8842" ? "Auth latency rollback" : taskSessions[0]?.title ?? taskCode,
+        sourceCode: taskCode,
+        sourceType: "Task",
+        sessions: taskSessions,
+      };
+    }),
     {
       taskCode: null,
       taskTitle: "Chat",
@@ -502,6 +510,48 @@ export function createMockChatSession(input: CreateChatSessionInput): ChatSessio
   compactionsBySession[session.sessionCode] = null;
   goalsBySession[session.sessionCode] = null;
   return session;
+}
+
+export function appendMockTaskRunTranscript(
+  sessionCode: string,
+  runCode: string,
+  prompt: string,
+  finalOutput: string,
+): void {
+  const session = sessions.find((item) => item.sessionCode === sessionCode);
+  if (!session) return;
+  const now = new Date().toISOString();
+  const channel = session.taskCode ? "TASK_AGENT" : "MAIN_AGENT";
+  const userMessage: ChatMessage = {
+    id: Date.now(),
+    messageCode: `MSG-${Date.now()}`,
+    sessionCode,
+    runCode,
+    role: "USER",
+    channel,
+    actor: "User",
+    content: prompt,
+    createdAt: now,
+  };
+  const assistantMessage: ChatMessage = {
+    id: Date.now() + 1,
+    messageCode: `MSG-${Date.now() + 1}`,
+    sessionCode,
+    runCode,
+    role: "ASSISTANT",
+    channel,
+    actor: "Assistant",
+    content: finalOutput,
+    createdAt: now,
+  };
+  session.lastRunCode = runCode;
+  session.lastRunStatus = "COMPLETED";
+  session.updatedAt = now;
+  messagesBySession[sessionCode] = [
+    ...(messagesBySession[sessionCode] ?? []),
+    userMessage,
+    assistantMessage,
+  ];
 }
 
 export function archiveMockChatSession(sessionCode: string): ChatSession {

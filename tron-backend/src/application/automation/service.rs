@@ -23,11 +23,11 @@ use crate::{
     application::workspace::WorkspaceService,
     domain::{
         automation::{
-            Automation, AutomationDetail, AutomationError, AutomationExecutionDraft,
-            AutomationExecutionListItem, AutomationExecutionListQuery, AutomationExecutionRecord,
-            AutomationExecutionStats, AutomationExecutionStatus, AutomationLifecycleResult,
-            AutomationListItem, AutomationListQuery, AutomationOptions, AutomationStatus,
-            AutomationTriggerSource, PagedAutomationRecords,
+            Automation, AutomationConcurrencyMode, AutomationDetail, AutomationError,
+            AutomationExecutionDraft, AutomationExecutionListItem, AutomationExecutionListQuery,
+            AutomationExecutionRecord, AutomationExecutionStats, AutomationExecutionStatus,
+            AutomationLifecycleResult, AutomationListItem, AutomationListQuery, AutomationOptions,
+            AutomationStatus, AutomationTriggerSource, PagedAutomationRecords,
             automation_execution_status_to_storage, automation_options,
         },
         workspace::{WorkspaceError, WorkspaceStatus},
@@ -67,6 +67,7 @@ pub struct CreateAutomationCommand {
     pub description: Option<String>,
     pub agent_code: Option<String>,
     pub model_code: Option<String>,
+    pub concurrency_mode: Option<AutomationConcurrencyMode>,
     pub prompt: String,
     pub cron_expression: String,
     pub status: Option<AutomationStatus>,
@@ -78,6 +79,7 @@ pub struct UpdateAutomationCommand {
     pub description: Option<Option<String>>,
     pub agent_code: Option<String>,
     pub model_code: Option<Option<String>>,
+    pub concurrency_mode: Option<AutomationConcurrencyMode>,
     pub prompt: Option<String>,
     pub cron_expression: Option<String>,
 }
@@ -105,6 +107,22 @@ pub trait AutomationRepository: Send {
         automation: &Automation,
         draft: &AutomationExecutionDraft,
     ) -> Result<Option<AutomationExecutionRecord>, AutomationError>;
+    fn link_execution_session(
+        &mut self,
+        automation_code: &str,
+        execution_code: &str,
+        session_code: &str,
+    ) -> Result<(), AutomationError>;
+    fn recover_interrupted_executions(
+        &mut self,
+        finished_at: &str,
+    ) -> Result<usize, AutomationError>;
+    fn prepare_serial_execution(
+        &mut self,
+        automation_code: &str,
+        execution_code: &str,
+        finished_at: &str,
+    ) -> Result<Option<Vec<AutomationExecutionRecord>>, AutomationError>;
     fn complete_execution_record(
         &mut self,
         automation_code: &str,
@@ -212,6 +230,36 @@ impl AutomationService {
             )
     }
 
+    pub fn link_execution_session(
+        &self,
+        automation_code: &str,
+        execution_code: &str,
+        session_code: &str,
+    ) -> Result<(), AutomationError> {
+        self.repository
+            .lock()
+            .expect("automation repository mutex poisoned")
+            .link_execution_session(automation_code, execution_code, session_code)
+    }
+
+    pub(crate) fn prepare_serial_execution(
+        &self,
+        automation_code: &str,
+        execution_code: &str,
+    ) -> Result<Option<Vec<AutomationExecutionRecord>>, AutomationError> {
+        self.repository
+            .lock()
+            .expect("automation repository mutex poisoned")
+            .prepare_serial_execution(automation_code, execution_code, &current_timestamp())
+    }
+
+    fn recover_interrupted_executions(&self, finished_at: &str) -> Result<usize, AutomationError> {
+        self.repository
+            .lock()
+            .expect("automation repository mutex poisoned")
+            .recover_interrupted_executions(finished_at)
+    }
+
     fn sync_runtime(&self, automation: &Automation) -> Result<(), AutomationError> {
         if automation.status == AutomationStatus::Active {
             self.runtime.register(
@@ -291,6 +339,7 @@ impl AutomationService {
                     cron_expression: automation.cron_expression,
                     timezone: automation.timezone,
                     status: automation.status,
+                    concurrency_mode: automation.concurrency_mode,
                     last_execution_status: automation.last_execution_status,
                     last_execution_summary: automation.last_execution_summary,
                     last_execution_code: automation.last_execution_code,
@@ -329,6 +378,7 @@ impl AutomationService {
             scheduler_expression: automation.scheduler_expression.clone(),
             timezone: automation.timezone,
             status: automation.status,
+            concurrency_mode: automation.concurrency_mode,
             previous_status: automation.previous_status,
             last_execution_status: automation.last_execution_status,
             last_execution_code: automation.last_execution_code,

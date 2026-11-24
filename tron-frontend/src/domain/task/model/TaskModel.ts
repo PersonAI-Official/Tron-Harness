@@ -46,6 +46,8 @@ export type UpdateTaskPayload = Partial<Omit<CreateTaskPayload, "parentTaskCode"
 export interface UpdateTaskStatusPayload { progress?: number; status: TaskStatus; }
 export interface TaskLifecycleResult { archivedAt: string | null; previousStatus: TaskStatus | null; status: TaskStatus; taskCode: string; }
 export interface TaskExecutionResult { agentCode: string; modelCode: string | null; runCode: string; sessionCode: string; summary: string; taskCode: string; }
+export type TaskExecutionStatus = "Running" | "Success" | "Failed";
+export interface TaskExecutionRecord { createdAt: string; executionCode: string; finishedAt: string | null; sessionCode: string | null; startedAt: string; status: TaskExecutionStatus; summary: string | null; taskCode: string; }
 
 function taskPriorityRank(priority: TaskPriority) {
   if (priority === "Extra High") return 0;

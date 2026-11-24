@@ -1,1 +1,1 @@
-export {};
+export { AutomationExecutionHistoryPanel } from "./AutomationExecutionHistoryPanel";

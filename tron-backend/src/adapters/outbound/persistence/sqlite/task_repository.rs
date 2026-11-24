@@ -5,7 +5,8 @@ use rusqlite::{Connection, OptionalExtension, Row, params};
 use crate::{
     application::task::{TaskReadRepository, TaskRelations, TaskRepository},
     domain::task::{
-        Task, TaskCodeLink, TaskError, TaskFlow, TaskFlowStatus, TaskUserAssignment,
+        PagedTaskRecords, Task, TaskCodeLink, TaskError, TaskExecutionRecord,
+        TaskExecutionStatus, TaskFlow, TaskFlowStatus, TaskUserAssignment,
         task_priority_from_storage, task_priority_to_storage, task_source_type_from_storage,
         task_source_type_to_storage, task_type_from_storage, task_type_to_storage,
     },
@@ -48,6 +49,18 @@ impl TaskReadRepository for SqliteTaskReader {
         self.connection.call_read(
             |connection| SqliteTaskRepositorySql { connection }.list_tasks(),
             || storage_error(rusqlite::Error::InvalidQuery),
+        )
+    }
+    fn page_task_executions(
+        &self,
+        task_code: &str,
+        current: usize,
+        size: usize,
+    ) -> Result<PagedTaskRecords<TaskExecutionRecord>, TaskError> {
+        let task_code = task_code.to_owned();
+        self.connection.call_read(
+            move |connection| page_task_executions(connection, &task_code, current, size),
+            || TaskError::StorageFailure,
         )
     }
     fn relations(
@@ -208,6 +221,70 @@ impl SqliteTaskRepositorySql<'_> {
             "UPDATE tasks SET work_session_code = ?2 WHERE task_code = ?1 AND owner_assistant_code IS NOT NULL AND archived_at IS NULL AND status <> 'CLOSED' AND (work_session_code IS NULL OR work_session_code = ?2)",
             params![task_code, session_code],
         ).map(|count| count == 1).map_err(storage_error)
+    }
+
+    fn begin_task_execution(
+        &mut self,
+        task: &Task,
+        execution: &TaskExecutionRecord,
+    ) -> Result<(), TaskError> {
+        let transaction = crate::adapters::outbound::persistence::sqlite::framework_storage::business_transaction(
+            self.connection,
+            rusqlite::TransactionBehavior::Immediate,
+        )
+        .map_err(storage_error)?;
+        update_task_row(&transaction, task)?;
+        transaction
+            .execute(
+                "INSERT INTO task_execution_records (execution_code, task_code, session_code, status, summary, started_at, finished_at, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                params![
+                    execution.execution_code,
+                    execution.task_code,
+                    execution.session_code,
+                    task_execution_status_to_storage(execution.status),
+                    execution.summary,
+                    timestamp_to_millis(&execution.started_at),
+                    option_timestamp_to_millis(execution.finished_at.as_deref()),
+                    timestamp_to_millis(&execution.created_at),
+                ],
+            )
+            .map_err(storage_error)?;
+        transaction.commit().map_err(storage_error)
+    }
+
+    fn finish_task_execution(
+        &mut self,
+        task: &Task,
+        execution_code: &str,
+        status: TaskExecutionStatus,
+        summary: Option<&str>,
+        finished_at: &str,
+    ) -> Result<(), TaskError> {
+        let transaction = crate::adapters::outbound::persistence::sqlite::framework_storage::business_transaction(
+            self.connection,
+            rusqlite::TransactionBehavior::Immediate,
+        )
+        .map_err(storage_error)?;
+        match update_task_row(&transaction, task) {
+            Ok(()) | Err(TaskError::InvalidRequest) => {}
+            Err(error) => return Err(error),
+        }
+        let changed = transaction
+            .execute(
+                "UPDATE task_execution_records SET status = ?2, summary = COALESCE(?3, summary), finished_at = ?4 WHERE execution_code = ?1 AND task_code = ?5",
+                params![
+                    execution_code,
+                    task_execution_status_to_storage(status),
+                    summary,
+                    timestamp_to_millis(finished_at),
+                    task.task_code,
+                ],
+            )
+            .map_err(storage_error)?;
+        if changed != 1 {
+            return Err(TaskError::InvalidRequest);
+        }
+        transaction.commit().map_err(storage_error)
     }
 
     fn list_task_flows(&mut self) -> Result<Vec<TaskFlow>, TaskError> {
@@ -514,8 +591,8 @@ fn insert_task_row(connection: &Connection, task: &Task) -> Result<(), TaskError
 fn update_task_row(connection: &Connection, task: &Task) -> Result<(), TaskError> {
     let changed = connection
         .execute(
-            "UPDATE tasks SET parent_task_code = ?2, title = ?3, description = ?4, execution_result = ?5, flow_code = ?6, status = ?7, previous_status = ?8, priority = ?9, task_type = ?10, source_type = ?11, source_url = ?12, agent_code = ?13, model_code = ?14, progress_value = ?15, updated_at = ?16, archived_at = ?17, due_at = ?18, planned_start_at = ?19, next_followup_at = ?20, schedule_version = schedule_version + 1 WHERE task_code = ?1 AND schedule_version = ?21",
-            params![task.task_code, task.parent_task_code, task.title, task.description, task.execution_result, task.flow_code, task.status, task.previous_status, task_priority_to_storage(task.priority), task_type_to_storage(task.task_type), task_source_type_to_storage(task.source_type), task.source_url, task.agent_code, task.model_code, i64::from(task.progress), timestamp_to_millis(&task.updated_at), option_timestamp_to_millis(task.archived_at.as_deref()), task.due_at, task.planned_start_at, task.next_followup_at, task.schedule_version],
+            "UPDATE tasks SET parent_task_code = ?2, title = ?3, description = ?4, execution_result = ?5, flow_code = ?6, status = ?7, previous_status = ?8, priority = ?9, task_type = ?10, source_type = ?11, source_url = ?12, agent_code = ?13, model_code = ?14, progress_value = ?15, updated_at = ?16, archived_at = ?17, due_at = ?18, planned_start_at = ?19, next_followup_at = ?20, work_session_code = ?21, schedule_version = schedule_version + 1 WHERE task_code = ?1 AND schedule_version = ?22",
+            params![task.task_code, task.parent_task_code, task.title, task.description, task.execution_result, task.flow_code, task.status, task.previous_status, task_priority_to_storage(task.priority), task_type_to_storage(task.task_type), task_source_type_to_storage(task.source_type), task.source_url, task.agent_code, task.model_code, i64::from(task.progress), timestamp_to_millis(&task.updated_at), option_timestamp_to_millis(task.archived_at.as_deref()), task.due_at, task.planned_start_at, task.next_followup_at, task.work_session_code, task.schedule_version],
         )
         .map_err(storage_error)?;
     if changed == 0 {
@@ -556,6 +633,72 @@ fn replace_code_links_row(
         *next_id += 1;
     }
     Ok(())
+}
+
+fn page_task_executions(
+    connection: &Connection,
+    task_code: &str,
+    current: usize,
+    size: usize,
+) -> Result<PagedTaskRecords<TaskExecutionRecord>, TaskError> {
+    let total = connection
+        .query_row(
+            "SELECT COUNT(*) FROM task_execution_records WHERE task_code = ?1",
+            [task_code],
+            |row| row.get::<_, usize>(0),
+        )
+        .map_err(storage_error)?;
+    let offset = current.saturating_sub(1).saturating_mul(size);
+    let mut statement = connection
+        .prepare(
+            "SELECT execution_code, task_code, session_code, status, summary, started_at, finished_at, created_at FROM task_execution_records WHERE task_code = ?1 ORDER BY started_at DESC, execution_code DESC LIMIT ?2 OFFSET ?3",
+        )
+        .map_err(storage_error)?;
+    let records = statement
+        .query_map(
+            params![task_code, size as i64, offset as i64],
+            row_to_task_execution,
+        )
+        .map_err(storage_error)?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(storage_error)?;
+    Ok(PagedTaskRecords {
+        current,
+        size,
+        total,
+        records,
+    })
+}
+
+fn row_to_task_execution(row: &Row<'_>) -> rusqlite::Result<TaskExecutionRecord> {
+    let status: String = row.get(3)?;
+    let status = match status.as_str() {
+        "Running" => TaskExecutionStatus::Running,
+        "Success" => TaskExecutionStatus::Success,
+        "Failed" => TaskExecutionStatus::Failed,
+        _ => return Err(task_mapping_error(TaskError::InvalidRequest)),
+    };
+    let started_at: i64 = row.get(5)?;
+    let finished_at: Option<i64> = row.get(6)?;
+    let created_at: i64 = row.get(7)?;
+    Ok(TaskExecutionRecord {
+        execution_code: row.get(0)?,
+        task_code: row.get(1)?,
+        session_code: row.get(2)?,
+        status,
+        summary: row.get(4)?,
+        started_at: timestamp_from_millis(started_at),
+        finished_at: option_timestamp_from_millis(finished_at),
+        created_at: timestamp_from_millis(created_at),
+    })
+}
+
+fn task_execution_status_to_storage(status: TaskExecutionStatus) -> &'static str {
+    match status {
+        TaskExecutionStatus::Running => "Running",
+        TaskExecutionStatus::Success => "Success",
+        TaskExecutionStatus::Failed => "Failed",
+    }
 }
 
 fn row_to_task(row: &Row<'_>) -> rusqlite::Result<Task> {
@@ -693,6 +836,48 @@ impl TaskRepository for SqliteTaskRepository {
             move |connection| {
                 SqliteTaskRepositorySql { connection }
                     .bind_assistant_work_session(&task_code, &session_code)
+            },
+            || storage_error(rusqlite::Error::InvalidQuery),
+        )
+    }
+
+    fn begin_task_execution(
+        &mut self,
+        task: &Task,
+        execution: &TaskExecutionRecord,
+    ) -> Result<(), TaskError> {
+        let task = task.clone();
+        let execution = execution.clone();
+        self.connection.call(
+            move |connection| {
+                SqliteTaskRepositorySql { connection }
+                    .begin_task_execution(&task, &execution)
+            },
+            || storage_error(rusqlite::Error::InvalidQuery),
+        )
+    }
+
+    fn finish_task_execution(
+        &mut self,
+        task: &Task,
+        execution_code: &str,
+        status: TaskExecutionStatus,
+        summary: Option<&str>,
+        finished_at: &str,
+    ) -> Result<(), TaskError> {
+        let task = task.clone();
+        let execution_code = execution_code.to_owned();
+        let summary = summary.map(str::to_owned);
+        let finished_at = finished_at.to_owned();
+        self.connection.call(
+            move |connection| {
+                SqliteTaskRepositorySql { connection }.finish_task_execution(
+                    &task,
+                    &execution_code,
+                    status,
+                    summary.as_deref(),
+                    &finished_at,
+                )
             },
             || storage_error(rusqlite::Error::InvalidQuery),
         )
