@@ -1,4 +1,4 @@
-import { ClipboardList, ShieldCheck, Zap } from "lucide-react";
+import { ShieldCheck, ShieldEllipsis, ShieldQuestionMark } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { ToolExecutionMode } from "@tron/chat-core";
 import { Button } from "@/components/ui/button";
@@ -20,9 +20,9 @@ interface ChatExecutionModeSelectorProps {
 export function ChatExecutionModeSelector({ value, disabled, onChange }: ChatExecutionModeSelectorProps) {
   const { t } = useTranslation("pages");
   const options = [
-    { value: "CONTROLLED", icon: ShieldCheck, label: t("chat.management.composer.controlledExecution"), description: t("chat.management.composer.controlledExecutionHint") },
-    { value: "AUTO_APPROVE", icon: Zap, label: t("chat.management.composer.autoApprove"), description: t("chat.management.composer.autoApproveHint") },
-    { value: "PLAN", icon: ClipboardList, label: t("chat.management.composer.planMode"), description: t("chat.management.composer.planModeHint") },
+    { value: "CONTROLLED", icon: ShieldQuestionMark, label: t("chat.management.composer.controlledExecution"), description: t("chat.management.composer.controlledExecutionHint") },
+    { value: "AUTO_APPROVE", icon: ShieldCheck, label: t("chat.management.composer.autoApprove"), description: t("chat.management.composer.autoApproveHint") },
+    { value: "PLAN", icon: ShieldEllipsis, label: t("chat.management.composer.planMode"), description: t("chat.management.composer.planModeHint") },
   ] as const;
   const selected = options.find((option) => option.value === value) ?? options[0];
   return (
