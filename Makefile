@@ -548,9 +548,9 @@ endif
 .PHONY: desktop-repackage
 desktop-repackage: desktop-check
 	$(call ASSERT_FILE,$(DESKTOP_SIDECAR_PATH))
-	$(MAKE) fe-build
+	$(MAKE) web-assets
 	$(call REMOVE,$(ELECTRON_DIR)/resources/frontend)
-	$(call COPY_TREE,$(FRONTEND_DIR)/dist,$(ELECTRON_DIR)/resources/frontend)
+	$(call COPY_TREE,$(BACKEND_FRONTEND_DIR),$(ELECTRON_DIR)/resources/frontend)
 	$(NODE) "$(ELECTRON_DIR)/scripts/write-update-config.cjs" "$(ELECTRON_DIR)/resources/update-config.json"
 	@if [ "$$(uname -s)" = Darwin ] && [ ! -f "$(ELECTRON_DIR)/build/entitlements.mac.plist" ]; then \
 		cp "$(ELECTRON_DIR)/node_modules/app-builder-lib/templates/entitlements.mac.plist" "$(ELECTRON_DIR)/node_modules/.tron-entitlements.mac.plist"; \
