@@ -600,6 +600,36 @@ impl AutomationRepository for SqliteAutomationRepositorySql<'_> {
         tx.commit().map_err(storage_error)?;
         Ok(deleted)
     }
+
+    fn delete_automation(&mut self, automation_code: &str) -> Result<(), AutomationError> {
+        let tx = crate::adapters::outbound::persistence::sqlite::framework_storage::business_transaction(
+            &self.connection,
+            TransactionBehavior::Immediate,
+        )
+        .map_err(storage_error)?;
+        let deleted = tx
+            .execute(
+                "DELETE FROM automation_execution_records WHERE automation_code = ?1",
+                params![automation_code],
+            )
+            .map_err(storage_error)?;
+        let automation_deleted = tx
+            .execute(
+                "DELETE FROM automations WHERE automation_code = ?1",
+                params![automation_code],
+            )
+            .map_err(storage_error)?;
+        if automation_deleted == 0 {
+            return Err(AutomationError::NotFound);
+        }
+
+        tracing::debug!(
+            automation_code,
+            deleted_execution_records = deleted,
+            "Deleted automation and execution records"
+        );
+        tx.commit().map_err(storage_error)
+    }
 }
 
 impl SqliteAutomationRepository {
@@ -654,6 +684,16 @@ impl AutomationRepository for SqliteAutomationRepository {
         self.connection.call(
             move |connection| {
                 SqliteAutomationRepositorySql { connection }.update_automation(&automation)
+            },
+            || storage_error(rusqlite::Error::InvalidQuery),
+        )
+    }
+
+    fn delete_automation(&mut self, automation_code: &str) -> Result<(), AutomationError> {
+        let automation_code = automation_code.to_owned();
+        self.connection.call(
+            move |connection| {
+                SqliteAutomationRepositorySql { connection }.delete_automation(&automation_code)
             },
             || storage_error(rusqlite::Error::InvalidQuery),
         )

@@ -145,7 +145,8 @@ pub async fn stream_message(
     Path(session_code): Path<String>,
     Json(request): Json<StreamChatMessageRequest>,
 ) -> Response {
-    stream_message_command(state, auth, session_code, request.into()).await
+    let task_execution = request.task_execution;
+    stream_message_command(state, auth, session_code, request.into(), task_execution).await
 }
 
 pub(crate) async fn stream_message_command(
@@ -153,6 +154,7 @@ pub(crate) async fn stream_message_command(
     auth: RequestAuthContext,
     session_code: String,
     mut request: SendChatMessageCommand,
+    task_execution: bool,
 ) -> Response {
     let stream_locale = SupportedLocale::from_raw(&auth.locale);
     let Ok(session) = state.chats.get_session(&session_code) else {
@@ -203,6 +205,28 @@ pub(crate) async fn stream_message_command(
         Some(&run_code),
     );
 
+    if task_execution {
+        let Some(task_code) = session.task_code.as_deref() else {
+            return crate::adapters::inbound::http::tasks::task_error_response(
+                crate::domain::task::TaskError::InvalidRequest,
+            );
+        };
+        if session.source_type != crate::domain::chat::ChatSessionSourceType::Task
+            || session.last_run_code.is_some()
+            || request.task_code.as_deref() != Some(task_code)
+        {
+            return crate::adapters::inbound::http::tasks::task_error_response(
+                crate::domain::task::TaskError::InvalidRequest,
+            );
+        }
+        if let Err(error) = state
+            .tasks
+            .begin_task_execution(task_code, &session_code, &run_code)
+        {
+            return crate::adapters::inbound::http::tasks::task_error_response(error);
+        }
+    }
+
     let agui_stream = state.agent_presentation.clone();
     let _ = agui_stream.activate(&session_code);
 
@@ -211,6 +235,10 @@ pub(crate) async fn stream_message_command(
     let chats = state.chats.clone();
     let session_code_for_task = session_code.clone();
     let run_code_for_task = run_code.clone();
+    let task_execution_record = task_execution
+        .then(|| session.task_code.clone().map(|task_code| (task_code, run_code.clone())))
+        .flatten();
+    let tasks = state.tasks.clone();
     let user_code = Some(auth.user().user_code.clone());
     let agent_service = AgentInvocationService::new(
         state.workspaces.clone(),
@@ -254,6 +282,25 @@ pub(crate) async fn stream_message_command(
                 sink,
             )
             .await;
+        if let Some((task_code, execution_code)) = task_execution_record {
+            let completion = match &result {
+                Ok(result) => tasks.finish_task_execution(
+                    &task_code,
+                    &execution_code,
+                    crate::domain::task::TaskExecutionStatus::Success,
+                    Some(result.run.final_output.clone()),
+                ),
+                Err(_) => tasks.finish_task_execution(
+                    &task_code,
+                    &execution_code,
+                    crate::domain::task::TaskExecutionStatus::Failed,
+                    None,
+                ),
+            };
+            if let Err(error) = completion {
+                tracing::error!("task execution {task_code} result persistence failed: {error:?}");
+            }
+        }
         let completion = match result {
             Ok(result) => {
                 if result.session.source_code.as_deref().is_some_and(|source| source.starts_with("__assistant:"))

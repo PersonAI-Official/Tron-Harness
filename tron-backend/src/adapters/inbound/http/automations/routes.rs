@@ -6,9 +6,9 @@ use axum::{
 use crate::app::AppState;
 
 use super::handler::{
-    archive_automation, create_automation, delete_execution_record, execute_automation,
-    get_automation, list_automations, list_execution_records, options, patch_automation,
-    patch_status, preview_schedule, restore_automation,
+    archive_automation, create_automation, delete_automation, delete_execution_record,
+    execute_automation, get_automation, list_automations, list_execution_records, options,
+    patch_automation, patch_status, preview_schedule, restore_automation,
 };
 
 pub fn routes() -> Router<AppState> {
@@ -24,7 +24,9 @@ pub fn routes() -> Router<AppState> {
         )
         .route(
             "/api/v1/automations/{automation_code}",
-            get(get_automation).patch(patch_automation),
+            get(get_automation)
+                .patch(patch_automation)
+                .delete(delete_automation),
         )
         .route(
             "/api/v1/automations/{automation_code}/status",

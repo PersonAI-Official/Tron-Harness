@@ -28,6 +28,12 @@ struct SchedulePreviewView {
     execution_times: Vec<i64>,
 }
 
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DeleteAutomationView {
+    automation_code: String,
+}
+
 pub async fn preview_schedule(Query(query): Query<SchedulePreviewQuery>) -> Response {
     match crate::application::automation::preview_schedule(&query.cron_expression) {
         Ok(execution_times) => Json(ApiResponse::success(SchedulePreviewView {
@@ -79,6 +85,19 @@ pub async fn patch_automation(
 ) -> Response {
     match automations.update_automation(&automation_code, request.into()) {
         Ok(detail) => Json(ApiResponse::success(detail)).into_response(),
+        Err(error) => automation_error_response(error),
+    }
+}
+
+pub async fn delete_automation(
+    State(automations): State<AutomationService>,
+    Path(automation_code): Path<String>,
+) -> Response {
+    match automations.delete_automation(&automation_code) {
+        Ok(()) => Json(ApiResponse::success(DeleteAutomationView {
+            automation_code,
+        }))
+        .into_response(),
         Err(error) => automation_error_response(error),
     }
 }

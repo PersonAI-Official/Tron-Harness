@@ -429,6 +429,13 @@ export function restoreMockAutomation(automationCode: string): AutomationLifecyc
   };
 }
 
+export function deleteMockAutomation(automationCode: string) {
+  const current = requireAutomation(automationCode);
+  automations = automations.filter((automation) => automation.automationCode !== automationCode);
+  executionRecords = executionRecords.filter((record) => record.automationCode !== automationCode);
+  return { automationCode: current.automationCode };
+}
+
 export function executeMockAutomation(automationCode: string) {
   const current = requireAutomation(automationCode);
   if (current.status === "Archived") {

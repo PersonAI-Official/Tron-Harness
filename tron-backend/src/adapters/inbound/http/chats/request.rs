@@ -106,6 +106,9 @@ pub struct StreamChatMessageRequest {
     pub annotations: Vec<eliteforge_agent_core::MessageAnnotation>,
     pub a2ui_metadata: Option<serde_json::Value>,
     pub content: Option<String>,
+    pub run_code: Option<String>,
+    #[serde(default)]
+    pub task_execution: bool,
     pub workspace_code: Option<String>,
     pub app_code: Option<String>,
     pub task_code: Option<String>,
@@ -130,7 +133,7 @@ pub struct StreamChatMessageRequest {
 impl From<StreamChatMessageRequest> for crate::application::chat::SendChatMessageCommand {
     fn from(request: StreamChatMessageRequest) -> Self {
         Self {
-            run_code: None,
+            run_code: request.run_code,
             a2ui_action_id: None,
             annotations: request.annotations,
             a2ui_metadata: request.a2ui_metadata,

@@ -194,6 +194,8 @@ export interface ChatMessageAttachment {
 export interface SendChatMessageInput {
   content: string;
   workspaceCode: string | null;
+  runCode?: string | null;
+  taskExecution?: boolean;
   appCode?: string | null;
   taskCode?: string | null;
   agentCode?: string | null;

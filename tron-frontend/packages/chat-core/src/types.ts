@@ -296,6 +296,8 @@ export interface ChatPageContext {
 export interface SendChatMessageInput {
   annotations?: ChatAnnotation[];
   content: string;
+  runCode?: string | null;
+  taskExecution?: boolean;
   workspaceCode: string | null;
   pageContext?: ChatPageContext | null;
   appCode?: string | null;

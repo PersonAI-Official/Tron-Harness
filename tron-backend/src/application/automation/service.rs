@@ -98,6 +98,7 @@ pub trait AutomationRepository: Send {
     fn next_id(&mut self) -> Result<i64, AutomationError>;
     fn create_automation(&mut self, automation: &Automation) -> Result<(), AutomationError>;
     fn update_automation(&mut self, automation: &Automation) -> Result<(), AutomationError>;
+    fn delete_automation(&mut self, automation_code: &str) -> Result<(), AutomationError>;
     fn list_execution_records(
         &mut self,
         automation_code: &str,

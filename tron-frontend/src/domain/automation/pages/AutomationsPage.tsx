@@ -10,6 +10,7 @@ import { useNavigate } from "react-router";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { DataTable } from "@/components/data-table";
 import { SelectInput } from "@/components/forms";
 import { SearchField } from "@/components/search-field";
@@ -26,6 +27,7 @@ import { DEFAULT_TAB_ID, useTabStore } from "@/store/tabStore";
 
 import {
   archiveAutomation,
+  deleteAutomation,
   executeAutomation,
   restoreAutomation,
   updateAutomationStatus,
@@ -37,6 +39,7 @@ import {
 import { useAutomationList } from "@/domain/automation/hooks";
 import {
   archiveMockAutomation,
+  deleteMockAutomation,
   executeMockAutomation,
   restoreMockAutomation,
   updateMockAutomationStatus,
@@ -107,6 +110,7 @@ export function AutomationsPage() {
   const [current, setCurrent] = useState(1);
   const [size, setSize] = useState(15);
   const [rowBusyKey, setRowBusyKey] = useState("");
+  const [deleteTargetAutomation, setDeleteTargetAutomation] = useState<AutomationListItem | null>(null);
   const [openRowMenu, setOpenRowMenu] = useState<RowMenuState | null>(null);
   const rowMenuRef = useRef<HTMLDivElement | null>(null);
   const query = useMemo(() => ({
@@ -199,7 +203,7 @@ export function AutomationsPage() {
     }
 
     const menuWidth = 176;
-    const estimatedMenuHeight = row.status === "Archived" ? 112 : 196;
+    const estimatedMenuHeight = row.status === "Archived" ? 156 : 240;
     const rect = trigger.getBoundingClientRect();
     const left = Math.min(
       Math.max(12, rect.right - menuWidth),
@@ -278,6 +282,30 @@ export function AutomationsPage() {
       refresh();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : pt("Automation lifecycle update failed"));
+    } finally {
+      setRowBusyKey("");
+    }
+  }
+
+  async function confirmDeleteAutomation() {
+    const target = deleteTargetAutomation;
+    if (!target) return;
+
+    const busyKey = `delete:${target.automationCode}`;
+    if (rowBusyKey === busyKey) return;
+    setRowBusyKey(busyKey);
+
+    try {
+      if (dataSource === "api") {
+        await deleteAutomation(target.automationCode);
+      } else {
+        deleteMockAutomation(target.automationCode);
+      }
+      toast.success(pt("Automation {{name}} permanently deleted", { name: target.name }));
+      setDeleteTargetAutomation(null);
+      refresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : pt("Automation deletion failed"));
     } finally {
       setRowBusyKey("");
     }
@@ -539,10 +567,37 @@ export function AutomationsPage() {
                 {pt("Restore")}
               </button>
             ) : null}
+            <button
+              type="button"
+              role="menuitem"
+              className="block w-full rounded-lg px-3 py-2 text-left text-[var(--color-error)] hover:bg-[var(--color-hover-surface)] disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={rowBusyKey === `delete:${openMenuRow.automationCode}`}
+              onClick={() => {
+                setDeleteTargetAutomation(openMenuRow);
+                setOpenRowMenu(null);
+              }}
+            >
+              {pt("Delete")}
+            </button>
           </div>,
           document.body,
         )
         : null}
+      <ConfirmDialog
+        open={deleteTargetAutomation !== null}
+        title={pt("Delete automation")}
+        description={pt("Permanently delete automation {{name}} and all of its execution records?", {
+          name: deleteTargetAutomation?.name ?? "",
+        })}
+        cancelText={pt("Cancel")}
+        confirmText={pt("Delete")}
+        pending={Boolean(deleteTargetAutomation && rowBusyKey === `delete:${deleteTargetAutomation.automationCode}`)}
+        pendingText={pt("Deleting...")}
+        onCancel={() => {
+          if (!rowBusyKey.startsWith("delete:")) setDeleteTargetAutomation(null);
+        }}
+        onConfirm={() => void confirmDeleteAutomation()}
+      />
     </>
   );
 }

@@ -231,7 +231,7 @@ pub async fn action(
     let action_id = command.a2ui_action_id.clone().unwrap();
     let run_id = command.run_code.clone().unwrap();
     let response =
-        super::handler::stream_message_command(app, auth, session.clone(), command).await;
+        super::handler::stream_message_command(app, auth, session.clone(), command, false).await;
     // Preparation can fail before a run task exists. Persist that terminal outcome
     // as well, otherwise a reconnect would wait forever on a claimed receipt.
     if !response.status().is_success() {

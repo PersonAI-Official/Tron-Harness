@@ -10,25 +10,15 @@ use axum::{
 use serde_json::Value;
 
 use crate::{
-    adapters::inbound::http::{
-        auth::RequestAuthContext,
-        chats::{
-            error_mapper::chat_send_error_response,
-            handler::{prepare_send_model, resolve_chat_agent_runtime},
-        },
-    },
+    adapters::inbound::http::auth::RequestAuthContext,
     app::AppState,
     application::{
-        agent::{AgentInvocationService, generate_agent_run_code},
-        chat::{CreateChatSessionCommand, SendChatMessageCommand},
-        task::TaskService,
+        agent::generate_agent_run_code, chat::CreateChatSessionCommand, task::TaskService,
     },
     domain::{
         chat::ChatSessionSourceType,
         prompt::PromptRuntimeProvider,
-        task::{
-            TaskError, TaskExecutionResult, TaskExecutionStatus, TaskFlowDraft, TaskListQuery,
-        },
+        task::{TaskError, TaskExecutionResult, TaskFlowDraft, TaskListQuery},
     },
     response::ApiResponse,
 };
@@ -211,10 +201,14 @@ pub async fn execute_task(
     if task.archived_at.is_some() {
         return task_error_response(TaskError::ArchivedMutationDenied);
     }
+    let execution_status = match task_execution_status(&state.tasks, &task) {
+        Ok(status) => status,
+        Err(error) => return task_error_response(error),
+    };
     let prompt = match state.prompts.runtime_prompt_text(
         "task.execution",
         &auth.locale,
-        &task_execution_runtime_values(&task),
+        &task_execution_runtime_values(&task, &execution_status),
     ) {
         Ok(Some(prompt)) => prompt,
         Ok(None) | Err(_) => return task_prompt_render_error_response(),
@@ -247,123 +241,7 @@ pub async fn execute_task(
     };
 
     let run_code = generate_agent_run_code();
-    let request = SendChatMessageCommand {
-        annotations: Vec::new(),
-        requested_skills: Vec::new(),
-        a2ui_action_id: None,
-        a2ui_metadata: None,
-        run_code: Some(run_code.clone()),
-        content: Some(prompt),
-        workspace_code: task.workspace_code.clone(),
-        app_code: None,
-        task_code: Some(task.task_code.clone()),
-        agent_code: Some(task.agent_code.clone()),
-        model_selection: None,
-        model_code: task.model_code.clone(),
-        system_model_id: task.model_code.clone(),
-        reasoning_effort: None,
-        page_context: None,
-        limits: None,
-        tools: Vec::new(),
-        attachments: Vec::new(),
-        client_capabilities: None,
-        resume: Vec::new(),
-    };
-    let runtime = match resolve_chat_agent_runtime(&state, &session, &request) {
-        Ok(runtime) => runtime,
-        Err(error) => {
-            let _ = state.chats.delete_session(&session.session_code);
-            return chat_send_error_response(error);
-        }
-    };
-    let prepared_model = match prepare_send_model(&state, &session, &request, &runtime) {
-        Ok(model) => model,
-        Err(error) => {
-            let _ = state.chats.delete_session(&session.session_code);
-            return chat_send_error_response(error);
-        }
-    };
-    let auto_model_route = prepared_model.auto_route;
-    let auto_model_router = prepared_model.auto_router;
-    let model = prepared_model.config;
-    let agent_service = AgentInvocationService::new(
-        state.workspaces.clone(),
-        state.apps.clone(),
-        state.variables.clone(),
-        state.skills.clone(),
-        state.agent_management.clone(),
-        state.agent_runs.clone(),
-        state.mcp.clone(),
-        state.event_bus.clone(),
-        state.agent_model_client.clone(),
-        state.agent_tool_registry.clone(),
-        state.runtime_http_client.clone(),
-    )
-    .with_framework_host(state.agent_framework.clone())
-    .with_directory_inspector(Some(std::sync::Arc::new(
-        crate::adapters::outbound::application_directory::GitApplicationDirectoryInspector,
-    )))
-    .with_short_term_memory(state.short_term_memory.clone())
-    .with_active_runs(state.active_runs.clone())
-    .with_prompt_service(state.prompts.clone())
-    .with_auto_model_route(auto_model_route, auto_model_router);
     let session_code = session.session_code.clone();
-    if let Err(error) = state
-        .tasks
-        .begin_task_execution(&task.task_code, &session_code, &run_code)
-    {
-        let _ = state.chats.delete_session(&session_code);
-        return task_error_response(error);
-    }
-    let chats = state.chats.clone();
-    let background_session_code = session_code.clone();
-    let user_code = auth.user().user_code.clone();
-    let locale = auth.locale.clone();
-    let llm_runtime = state.llm_runtime.clone();
-    let task_code_for_log = task.task_code.clone();
-    let task_code_for_result = task.task_code.clone();
-    let execution_code_for_result = run_code.clone();
-    let tasks = state.tasks.clone();
-    crate::app::telemetry::spawn_traced(async move {
-        match chats
-            .send_message(
-                &background_session_code,
-                request,
-                model,
-                Some(user_code),
-                Some(locale),
-                Some(llm_runtime),
-                agent_service,
-            )
-            .await
-        {
-            Ok(result) => {
-                if let Err(error) = tasks.finish_task_execution(
-                    &task_code_for_result,
-                    &execution_code_for_result,
-                    TaskExecutionStatus::Success,
-                    Some(result.run.final_output),
-                ) {
-                    tracing::error!(
-                        "task execution {task_code_for_log} result persistence failed: {error:?}"
-                    );
-                }
-            }
-            Err(error) => {
-                if let Err(persist_error) = tasks.finish_task_execution(
-                    &task_code_for_result,
-                    &execution_code_for_result,
-                    TaskExecutionStatus::Failed,
-                    None,
-                ) {
-                    tracing::error!(
-                        "task execution {task_code_for_log} failure persistence failed: {persist_error:?}"
-                    );
-                }
-                tracing::error!("task execution {task_code_for_log} failed: {error:?}");
-            }
-        }
-    });
 
     Json(ApiResponse::success(TaskExecutionResult {
         task_code: task.task_code,
@@ -374,6 +252,7 @@ pub async fn execute_task(
             .unwrap_or_else(|| "main-agent".to_string()),
         model_code: task.model_code,
         summary: tron_i18n::t!("tasks.execution_started", locale = &auth.locale).into_owned(),
+        prompt,
     }))
     .into_response()
 }
@@ -418,6 +297,7 @@ pub async fn archive_task(
 
 fn task_execution_runtime_values(
     task: &crate::domain::task::TaskDetail,
+    execution_status: &str,
 ) -> HashMap<PromptRuntimeProvider, Value> {
     let description = task
         .description
@@ -441,7 +321,7 @@ fn task_execution_runtime_values(
         task.task_code,
         task.title,
         task.task_type,
-        task.status,
+        execution_status,
         task.priority,
         task.progress,
         task.source_type,
@@ -453,6 +333,28 @@ fn task_execution_runtime_values(
         PromptRuntimeProvider::TaskContext,
         Value::String(task_context),
     )])
+}
+
+fn task_execution_status(
+    tasks: &TaskService,
+    task: &crate::domain::task::TaskDetail,
+) -> Result<String, TaskError> {
+    if task.status != crate::domain::task::NOT_STARTED_STATUS_CODE {
+        return Ok(task.status.clone());
+    }
+    let flow = tasks.get_task_flow(&task.flow_code)?;
+    Ok(flow
+        .statuses
+        .iter()
+        .find(|status| status.status_code == crate::domain::task::IN_PROGRESS_STATUS_CODE)
+        .or_else(|| {
+            flow.statuses.iter().find(|status| {
+                status.status_code != crate::domain::task::NOT_STARTED_STATUS_CODE
+                    && status.status_code != crate::domain::task::CLOSED_STATUS_CODE
+            })
+        })
+        .map(|status| status.status_code.clone())
+        .unwrap_or_else(|| task.status.clone()))
 }
 
 pub async fn restore_task(

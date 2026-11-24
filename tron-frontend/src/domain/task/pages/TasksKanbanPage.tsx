@@ -588,7 +588,7 @@ export function TasksKanbanPage() {
         t("pages:tasks.messages.executionStarted", "Task {{code}} execution started", { code: result.taskCode }),
         { title: result.runCode },
       );
-      navigate(`/chats?sessionCode=${encodeURIComponent(result.sessionCode)}&sourceTab=task`);
+      navigate(`/chats?sessionCode=${encodeURIComponent(result.sessionCode)}&sourceTab=task`, { state: { taskExecution: result } });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("pages:tasks.detail.errors.execution", "Task execution failed"));
     } finally {

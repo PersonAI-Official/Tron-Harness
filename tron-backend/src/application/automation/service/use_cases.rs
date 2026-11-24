@@ -250,6 +250,29 @@ impl AutomationService {
         Ok(result)
     }
 
+    pub fn delete_automation(&self, automation_code: &str) -> Result<(), AutomationError> {
+        let automation = self.get_automation_record(automation_code)?;
+        self.runtime.unregister(&automation.automation_code);
+        let result = self
+            .repository
+            .lock()
+            .expect("automation repository mutex poisoned")
+            .delete_automation(automation_code);
+        if let Err(error) = result {
+            if error != AutomationError::NotFound
+                && let Err(sync_error) = self.sync_runtime(&automation)
+            {
+                tracing::error!(
+                    %sync_error,
+                    automation_code,
+                    "Failed to restore automation scheduling after a failed deletion"
+                );
+            }
+            return Err(error);
+        }
+        Ok(())
+    }
+
     pub fn execute_now(&self, automation_code: &str) -> Result<AutomationDetail, AutomationError> {
         self.execute_internal(automation_code, AutomationTriggerSource::Manual, None)?;
         let detail = self.get_automation(automation_code)?;
