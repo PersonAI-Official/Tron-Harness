@@ -1,6 +1,34 @@
 import * as Ui from "@personai/agent-ui-chat-core";
 import { FetchTransportError, isChatSendResult, sessionAgentTagLabel, type ChatSession, type ChatMessage, type ChatMessageAttachment, type ChatSendResult, type ChatUserInputRequest, type ChatUserInputAnswer, type ChatAguiStreamEvent, type SendChatMessageInput } from "@tron/chat-core";
 
+export type ArtifactPreviewKind = "image" | "pdf" | "html" | "text" | "unsupported";
+
+export function resolveArtifactPreview(item: Pick<Ui.ChatArtifactItem, "display" | "mediaType">): {
+  kind: ArtifactPreviewKind;
+  mimeType: string;
+} {
+  let mimeType = item.mediaType?.split(";")[0]?.trim().toLowerCase() ?? "";
+  if (!mimeType || mimeType === "application/octet-stream") {
+    const extension = item.display.split(".").at(-1)?.toLowerCase() ?? "";
+    mimeType = ({
+      html: "text/html", htm: "text/html", pdf: "application/pdf",
+      png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp",
+      gif: "image/gif", svg: "image/svg+xml",
+      txt: "text/plain", log: "text/plain", md: "text/markdown", markdown: "text/markdown",
+      json: "application/json", xml: "application/xml", csv: "text/csv",
+      tsv: "text/tab-separated-values", yaml: "text/yaml", yml: "text/yaml",
+    } as Record<string, string>)[extension] ?? mimeType;
+  }
+
+  if (mimeType.startsWith("image/")) return { kind: "image", mimeType };
+  if (mimeType === "application/pdf") return { kind: "pdf", mimeType };
+  if (mimeType === "text/html" || mimeType === "application/xhtml+xml") return { kind: "html", mimeType };
+  if (mimeType.startsWith("text/") || mimeType === "application/json" || mimeType.endsWith("+xml")) {
+    return { kind: "text", mimeType };
+  }
+  return { kind: "unsupported", mimeType: mimeType || "application/octet-stream" };
+}
+
 /** Product fields remain host-owned; the public UI only reads its neutral contract. */
 interface MappedSession extends Ui.ChatSession {
   metadata: { tron: ChatSession };

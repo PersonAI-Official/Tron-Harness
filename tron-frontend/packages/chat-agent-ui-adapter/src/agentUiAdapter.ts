@@ -41,7 +41,6 @@ export function createAgentUiAdapter(host: ChatAdapter, config: ChatClientConfig
             itemId: input.itemId,
             workspaceCode: workspaceCodeForSession(session),
             token,
-            suggestedName: input.itemId,
           }) as { status?: string; message?: string } | null;
           if (value?.status === "saved" || value?.status === "opened" || value?.status === "revealed") {
             return { status: "completed" as const };

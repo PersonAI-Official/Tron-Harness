@@ -5,38 +5,32 @@ import type * as Ui from "@personai/agent-ui-chat-core";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { requestApiBlob } from "@/shared/api/httpClient";
+import { resolveArtifactPreview } from "@tron/chat-agent-ui-adapter";
 
-type PreviewKind = "image" | "pdf" | "html" | "text" | "unsupported";
+type PreviewKind = ReturnType<typeof resolveArtifactPreview>["kind"];
 type PreviewContent = { kind: PreviewKind; url?: string; text?: string };
 
-function artifactExtension(item: Ui.ChatArtifactItem) {
-  return item.display.split(".").at(-1)?.toLowerCase() ?? "";
-}
-
-function artifactMimeType(item: Ui.ChatArtifactItem) {
-  const mediaType = item.mediaType?.split(";")[0]?.trim().toLowerCase();
-  if (mediaType && mediaType !== "application/octet-stream") return mediaType;
-  switch (artifactExtension(item)) {
-    case "html": case "htm": return "text/html";
-    case "pdf": return "application/pdf";
-    case "png": return "image/png";
-    case "jpg": case "jpeg": return "image/jpeg";
-    case "webp": return "image/webp";
-    case "gif": return "image/gif";
-    case "svg": return "image/svg+xml";
-    case "txt": case "log": case "md": case "markdown": return "text/plain";
-    case "json": return "application/json";
-    case "xml": case "csv": case "tsv": case "yaml": case "yml": return "text/plain";
-    default: return mediaType ?? "application/octet-stream";
+function themedHtml(html: string) {
+  const rootStyle = window.getComputedStyle(document.documentElement);
+  const resolveColor = (variable: string, fallback: string) => {
+    const value = rootStyle.getPropertyValue(variable).trim();
+    return value && CSS.supports("color", value) ? value : fallback;
+  };
+  const background = resolveColor("--color-surface", "Canvas");
+  const foreground = resolveColor("--color-on-surface", "CanvasText");
+  const colorScheme = document.documentElement.dataset.theme === "matrix-dark" ? "dark" : "light";
+  const style = `<style data-tron-artifact-preview-theme>html,body{background-color:${background}!important;color:${foreground}!important;color-scheme:${colorScheme}!important}body{min-height:100vh}</style>`;
+  const head = /<head\b[^>]*>/i.exec(html);
+  if (head?.index !== undefined) {
+    const insertAt = head.index + head[0].length;
+    return `${html.slice(0, insertAt)}${style}${html.slice(insertAt)}`;
   }
-}
-
-function previewKind(mimeType: string): PreviewKind {
-  if (mimeType.startsWith("image/")) return "image";
-  if (mimeType === "application/pdf") return "pdf";
-  if (mimeType === "text/html" || mimeType === "application/xhtml+xml") return "html";
-  if (mimeType.startsWith("text/") || mimeType === "application/json" || mimeType.endsWith("+xml")) return "text";
-  return "unsupported";
+  const root = /<html\b[^>]*>/i.exec(html);
+  if (root?.index !== undefined) {
+    const insertAt = root.index + root[0].length;
+    return `${html.slice(0, insertAt)}<head>${style}</head>${html.slice(insertAt)}`;
+  }
+  return `${style}${html}`;
 }
 
 export function ChatArtifactPreviewDialog({ open, onOpenChange, sessionCode, workspaceCode, runCode, item }: {
@@ -48,8 +42,7 @@ export function ChatArtifactPreviewDialog({ open, onOpenChange, sessionCode, wor
   item: Ui.ChatArtifactItem;
 }) {
   const { t } = useTranslation("pages");
-  const mimeType = artifactMimeType(item);
-  const kind = previewKind(mimeType);
+  const { kind, mimeType } = resolveArtifactPreview(item);
   const [attempt, setAttempt] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -87,8 +80,14 @@ export function ChatArtifactPreviewDialog({ open, onOpenChange, sessionCode, wor
       signal: controller.signal,
     }).then(async (response) => {
       if (controller.signal.aborted) return;
-      if (kind === "text") {
-        setContent({ kind, text: await response.blob.text() });
+      if (kind === "text" || kind === "html") {
+        const text = await response.blob.text();
+        if (kind === "html") {
+          objectUrl = URL.createObjectURL(new Blob([themedHtml(text)], { type: mimeType }));
+          setContent({ kind, url: objectUrl });
+        } else {
+          setContent({ kind, text });
+        }
       } else {
         objectUrl = URL.createObjectURL(new Blob([response.blob], { type: mimeType }));
         setContent({ kind, url: objectUrl });
@@ -113,7 +112,7 @@ export function ChatArtifactPreviewDialog({ open, onOpenChange, sessionCode, wor
       <DialogHeader>
         <DialogTitle>{t("chat.artifactPreview.title", { name: item.display })}</DialogTitle>
       </DialogHeader>
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div className="min-h-0 flex-1 overflow-auto rounded-md bg-[var(--color-surface)] text-[var(--color-on-surface)]">
         {loading ? <p role="status" className="p-4">{t("chat.artifactPreview.loading")}</p> : null}
         {error ? <div className="space-y-3 p-4" role="alert">
           <p>{error}</p>
@@ -121,13 +120,13 @@ export function ChatArtifactPreviewDialog({ open, onOpenChange, sessionCode, wor
         </div> : null}
         {!loading && !error && kind === "unsupported" ? <p className="p-4">{t("chat.artifactPreview.unsupported")}</p> : null}
         {!loading && !error && content?.kind === "image" && content.url
-          ? <div className="flex h-full items-center justify-center p-3"><img src={content.url} alt={item.display} className="max-h-full max-w-full object-contain" /></div>
+          ? <div className="flex h-full items-center justify-center bg-[var(--color-surface)] p-3"><img src={content.url} alt={item.display} className="max-h-full max-w-full object-contain" /></div>
           : null}
         {!loading && !error && content?.kind === "pdf" && content.url
-          ? <iframe title={item.display} src={content.url} className="h-full min-h-96 w-full border-0" />
+          ? <iframe title={item.display} src={content.url} className="h-full min-h-96 w-full border-0 bg-[var(--color-surface)]" />
           : null}
         {!loading && !error && content?.kind === "html" && content.url
-          ? <iframe title={item.display} src={content.url} sandbox="allow-scripts" referrerPolicy="no-referrer" className="h-full min-h-96 w-full border-0" />
+          ? <iframe title={item.display} src={content.url} sandbox="allow-scripts" referrerPolicy="no-referrer" className="h-full min-h-96 w-full border-0 bg-[var(--color-surface)]" />
           : null}
         {!loading && !error && content?.kind === "text"
           ? <pre className="h-full overflow-auto whitespace-pre-wrap break-words p-4 font-mono text-sm">{content.text}</pre>

@@ -56,11 +56,7 @@ pub async fn download_artifact(
     };
     let inline = query.disposition.as_deref() == Some("inline")
         && artifact_inline_allowed(&content.media_type);
-    let media_type = if inline {
-        content.media_type.clone()
-    } else {
-        "application/octet-stream".to_owned()
-    };
+    let media_type = content.media_type.clone();
     let byte_size = content.byte_size;
     let file_name = content.file_name.clone();
     let file = tokio::fs::File::from_std(file);

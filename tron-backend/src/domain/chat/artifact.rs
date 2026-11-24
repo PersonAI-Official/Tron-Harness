@@ -52,10 +52,59 @@ impl ArtifactRecord {
             actions: requested
                 .iter()
                 .copied()
-                .filter(|action| action.supported_by(&self.source.kind))
+                .filter(|action| match action {
+                    ArtifactAction::Preview => {
+                        artifact_preview_supported(&self.display, self.media_type.as_deref())
+                    }
+                    _ => action.supported_by(&self.source.kind),
+                })
                 .collect(),
         }
     }
+}
+
+fn artifact_preview_supported(display: &str, media_type: Option<&str>) -> bool {
+    let media_type = media_type
+        .unwrap_or_default()
+        .split(';')
+        .next()
+        .unwrap_or_default()
+        .trim()
+        .to_ascii_lowercase();
+    let media_type = if media_type.is_empty() || media_type == "application/octet-stream" {
+        let extension = std::path::Path::new(display)
+            .extension()
+            .and_then(|value| value.to_str())
+            .unwrap_or_default()
+            .to_ascii_lowercase();
+        match extension.as_str() {
+            "html" | "htm" => "text/html".to_owned(),
+            "pdf" => "application/pdf".to_owned(),
+            "png" => "image/png".to_owned(),
+            "jpg" | "jpeg" => "image/jpeg".to_owned(),
+            "webp" => "image/webp".to_owned(),
+            "gif" => "image/gif".to_owned(),
+            "svg" => "image/svg+xml".to_owned(),
+            "txt" | "log" => "text/plain".to_owned(),
+            "md" | "markdown" => "text/markdown".to_owned(),
+            "json" => "application/json".to_owned(),
+            "xml" => "application/xml".to_owned(),
+            "csv" => "text/csv".to_owned(),
+            "tsv" => "text/tab-separated-values".to_owned(),
+            "yaml" | "yml" => "text/yaml".to_owned(),
+            _ => media_type,
+        }
+    } else {
+        media_type
+    };
+
+    media_type.starts_with("image/")
+        || media_type == "application/pdf"
+        || media_type == "text/html"
+        || media_type == "application/xhtml+xml"
+        || media_type.starts_with("text/")
+        || media_type == "application/json"
+        || media_type.ends_with("+xml")
 }
 
 /// Actions the current client may show. `open`/`reveal` join this list only

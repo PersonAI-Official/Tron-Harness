@@ -999,6 +999,36 @@ function artifactIdentifier(value, field) {
   return value.trim();
 }
 
+function artifactFileName(value) {
+  if (typeof value !== "string" || !value.trim()) return undefined;
+  const fileName = value.split(/[\\/]/).pop()?.replace(/[\u0000-\u001f\u007f]/g, "").trim();
+  if (!fileName || fileName === "." || fileName === "..") return undefined;
+  const extension = path.extname(fileName);
+  return fileName.length > 200 && extension
+    ? `${fileName.slice(0, 200 - extension.length)}${extension}`
+    : fileName.slice(0, 200);
+}
+
+function artifactFileNameFromDisposition(value) {
+  if (typeof value !== "string") return undefined;
+  const extended = /(?:^|;)\s*filename\*\s*=\s*([^;]+)/i.exec(value)?.[1]?.trim().replace(/^"|"$/g, "");
+  if (extended) {
+    const encoded = extended.replace(/^utf-8''/i, "");
+    try {
+      const fileName = artifactFileName(decodeURIComponent(encoded));
+      if (fileName) return fileName;
+    } catch (_error) {}
+  }
+  const plain = /(?:^|;)\s*filename\s*=\s*(?:"([^"]*)"|([^;]*))/i.exec(value);
+  return artifactFileName(plain?.[1] ?? plain?.[2]);
+}
+
+function artifactSaveFilters(fileName) {
+  const extension = path.extname(fileName).slice(1).toLowerCase();
+  if (!/^[a-z0-9]{1,16}$/.test(extension)) return undefined;
+  return [{ name: extension.toUpperCase(), extensions: [extension] }];
+}
+
 /**
  * Download one delivered file through the authenticated content endpoint and
  * persist it through the OS save dialog. The renderer supplies an access token
@@ -1053,9 +1083,6 @@ async function handleArtifactSave(payload, browserWindow) {
   const itemId = artifactIdentifier(payload.itemId, "item");
   const workspaceCode = artifactIdentifier(payload.workspaceCode, "workspace");
   const token = artifactIdentifier(payload.token, "token");
-  const suggestedName = typeof payload.suggestedName === "string" && payload.suggestedName.trim()
-    ? path.basename(payload.suggestedName.trim()).slice(0, 200)
-    : "artifact";
   const url = new URL(
     `/api/v1/chats/sessions/${encodeURIComponent(sessionCode)}/artifacts/${encodeURIComponent(runCode)}/${encodeURIComponent(itemId)}/content`,
     state.backendUrl,
@@ -1068,23 +1095,37 @@ async function handleArtifactSave(payload, browserWindow) {
   if (!response.ok || !response.body) {
     return { status: "failed", message: `artifact content unavailable (${response.status})` };
   }
-  const tempDir = await fs.promises.mkdtemp(path.join(app.getPath("temp"), "tron-artifact-"));
-  const tempPath = path.join(tempDir, "download");
+  const suggestedName = artifactFileNameFromDisposition(response.headers.get("content-disposition"))
+    ?? artifactFileName(payload.suggestedName)
+    ?? "artifact";
+  const filters = artifactSaveFilters(suggestedName);
+  const options = { defaultPath: suggestedName, ...(filters ? { filters } : {}) };
+  const result = browserWindow
+    ? await dialog.showSaveDialog(browserWindow, options)
+    : await dialog.showSaveDialog(options);
+  if (result.canceled || !result.filePath) {
+    await response.body.cancel().catch(() => {});
+    return { status: "cancelled" };
+  }
+
+  let backupPath;
   try {
+    const candidate = path.join(path.dirname(result.filePath), `.tron-artifact-${crypto.randomUUID()}.backup`);
+    try {
+      await fs.promises.rename(result.filePath, candidate);
+      backupPath = candidate;
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error;
+    }
     const { Readable } = require("node:stream");
     const { pipeline } = require("node:stream/promises");
-    await pipeline(Readable.fromWeb(response.body), fs.createWriteStream(tempPath));
-    const options = { defaultPath: suggestedName };
-    const result = browserWindow
-      ? await dialog.showSaveDialog(browserWindow, options)
-      : await dialog.showSaveDialog(options);
-    if (result.canceled || !result.filePath) {
-      return { status: "cancelled" };
-    }
-    await fs.promises.copyFile(tempPath, result.filePath);
+    await pipeline(Readable.fromWeb(response.body), fs.createWriteStream(result.filePath, { flags: "wx" }));
+    if (backupPath) await fs.promises.rm(backupPath, { force: true }).catch(() => {});
     return { status: "saved" };
-  } finally {
-    await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+  } catch (error) {
+    await fs.promises.rm(result.filePath, { force: true }).catch(() => {});
+    if (backupPath) await fs.promises.rename(backupPath, result.filePath).catch(() => {});
+    throw error;
   }
 }
 
