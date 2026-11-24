@@ -173,13 +173,32 @@ export function AutomationDetailsPage() {
     <InspectorPanel title={pt("Core definition")}>
       <div className="space-y-3">
         <DetailField label={pt("Automation name")} value={automation.name} />
-        <DetailField label={pt("Automation code")} value={automation.automationCode || automationCode} />
-        <DetailField label={pt("Status")} value={<Badge variant={getAutomationStatusTone(automation.status)}>{pt(automation.status)}</Badge>} />
         <DetailField label={pt("Execution mode")} value={pt(automation.concurrencyMode)} />
         <DetailField label={pt("Latest result")} value={automation.lastExecutionStatus ? pt(automation.lastExecutionStatus) : pt("No runs")} />
       </div>
+      <div className="mt-5 border-t border-[var(--color-outline-variant)] pt-4">
+        <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--color-on-surface-variant)]">
+          {pt("Metadata")}
+        </h3>
+        <div className="space-y-3">
+          <DetailField label={pt("Automation code")} value={<ReadValue>{automation.automationCode || automationCode}</ReadValue>} />
+          <DetailField label={pt("Record ID")} value={<ReadValue>{automation.id}</ReadValue>} />
+          <DetailField
+            label={pt("Status")}
+            value={<Badge variant={getAutomationStatusTone(automation.status)}>{pt(automation.status)}</Badge>}
+          />
+          <DetailField label={pt("Workspace")} value={<ReadValue>{automation.workspaceCode}</ReadValue>} />
+          <DetailField label={pt("Agent code")} value={<ReadValue>{automation.agentCode}</ReadValue>} />
+          <DetailField label={pt("Model code")} value={<ReadValue>{automation.modelCode}</ReadValue>} />
+          <DetailField label={pt("Timezone")} value={<ReadValue>{automation.timezone}</ReadValue>} />
+          <DetailField label={pt("Created")} value={formatTimestamp(automation.createdAt)} />
+          <DetailField label={pt("Updated")} value={formatTimestamp(automation.updatedAt)} />
+          <DetailField label={pt("Archived at")} value={formatTimestamp(automation.archivedAt)} />
+          <DetailField label={pt("Previous status")} value={<ReadValue>{automation.previousStatus}</ReadValue>} />
+        </div>
+      </div>
     </InspectorPanel>
-  ), [automation, automationCode, pt]);
+  ), [automation, automationCode, formatTimestamp, pt]);
   const rightPanelTabs = useMemo<EditableTab[]>(() => (automationCode ? [{
     key: "automation-execution-history",
     label: pt("Execution instances"),
@@ -561,27 +580,6 @@ export function AutomationDetailsPage() {
                 content={automation.prompt}
               />
             )}
-          </div>
-        </SurfaceCard>
-        <SurfaceCard>
-          <div className="mb-4">
-            <h2 className="text-lg font-semibold text-[var(--color-on-surface)]">{pt("Metadata")}</h2>
-          </div>
-          <div className="grid gap-4 lg:grid-cols-3">
-            <DetailField label={pt("Automation code")} value={<ReadValue>{automation.automationCode}</ReadValue>} />
-            <DetailField label={pt("Record ID")} value={<ReadValue>{automation.id}</ReadValue>} />
-            <DetailField
-              label={pt("Status")}
-              value={<Badge variant={getAutomationStatusTone(automation.status)}>{pt(automation.status)}</Badge>}
-            />
-            <DetailField label={pt("Workspace")} value={<ReadValue>{automation.workspaceCode}</ReadValue>} />
-            <DetailField label={pt("Agent code")} value={<ReadValue>{automation.agentCode}</ReadValue>} />
-            <DetailField label={pt("Model code")} value={<ReadValue>{automation.modelCode}</ReadValue>} />
-            <DetailField label={pt("Timezone")} value={<ReadValue>{automation.timezone}</ReadValue>} />
-            <DetailField label={pt("Created")} value={formatTimestamp(automation.createdAt)} />
-            <DetailField label={pt("Updated")} value={formatTimestamp(automation.updatedAt)} />
-            <DetailField label={pt("Archived at")} value={formatTimestamp(automation.archivedAt)} />
-            <DetailField label={pt("Previous status")} value={<ReadValue>{automation.previousStatus}</ReadValue>} />
           </div>
         </SurfaceCard>
       </div>

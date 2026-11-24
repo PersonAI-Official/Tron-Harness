@@ -55,6 +55,7 @@ Remote images require a network connection and are not bundled with the text. --
 - Completed Chinese and English labels for automation modes, execution history, and workspace fields.
 - Added permanent automation deletion, including its execution records.
 - Localized the automation detail “Edit” button for Chinese.
+- Moved automation metadata into the “Properties” tab in the right sidebar.
 - Added a task history sidebar to task details, with access to execution sessions.
 
 ## [1.0.2] - 2026-11-11
