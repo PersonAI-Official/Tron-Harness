@@ -21,6 +21,8 @@ import { useLocaleFormatters } from "@/shared/hooks/useLocaleFormatters";
 import { useLocaleText } from "@/shared/hooks/useLocaleText";
 import { useWorkspaceSpaces } from "@/shared/hooks/useWorkspaceSpaces";
 import { useToast } from "@/components/ui/toast";
+import { useTabPanelConfig } from "@/shared/layout/content/TabPanelRegistry";
+import { DEFAULT_TAB_ID, useTabStore } from "@/store/tabStore";
 
 import {
   archiveAutomation,
@@ -46,6 +48,8 @@ import type {
 } from "@/domain/automation/model";
 import { getServiceDataSource } from "@/shared/api/serviceConfig";
 import { SelectItem } from "@/components/ui/select";
+
+const EMPTY_RIGHT_PANEL_TABS: never[] = [];
 
 function pageBounds(page: number, pageSize: number, total: number, visible: number) {
   if (!total || !visible) return { end: 0, start: 0 };
@@ -89,6 +93,8 @@ interface RowMenuState {
 export function AutomationsPage() {
   const navigate = useNavigate();
   const pt = useLocaleText();
+  const activeTabId = useTabStore((state) => state.activeTabId ?? DEFAULT_TAB_ID);
+  const updateRightPanelState = useTabStore((state) => state.updateRightPanelState);
   const { formatDateTime, formatNumber } = useLocaleFormatters();
   const toast = useToast();
   const dataSource = getServiceDataSource("automation");
@@ -111,6 +117,12 @@ export function AutomationsPage() {
     workspaceCode: activeWorkspaceCode,
   }), [activeWorkspaceCode, current, debouncedSearch, size, statusFilter]);
   const { page, refresh: refreshList } = useAutomationList(query);
+  useTabPanelConfig({ rightPanel: null, rightPanelTabs: EMPTY_RIGHT_PANEL_TABS });
+
+  useEffect(() => {
+    updateRightPanelState(activeTabId, { open: false });
+  }, [activeTabId, updateRightPanelState]);
+
   const { page: workspacePage, refresh: refreshTotal } = useAutomationList({
     workspaceCode: activeWorkspaceCode,
     current: 1,

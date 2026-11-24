@@ -47,6 +47,7 @@ Remote images require a network connection and are not bundled with the text. --
 - Persisted task execution records and automation runs with linked sessions, and recover interrupted runs left in progress at startup.
 - Added serial and parallel automation modes. Serial is the default; starting a new run stops the previous unfinished run.
 - Automation details now open with the "Execution instances" tab in the right sidebar, showing run status, summary, and linked session.
+- Hid the execution history and properties sidebar from the automation list; it remains available on automation details.
 - Completed Chinese and English labels for automation modes, execution history, and workspace fields.
 
 ## [1.0.2] - 2026-11-11
