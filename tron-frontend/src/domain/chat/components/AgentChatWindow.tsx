@@ -20,6 +20,7 @@ import { OPEN_CHAT_CONTEXT_EVENT } from "@/shared/lib/shellEvents";
 import { requestApi } from "@/shared/api/httpClient";
 import { chatWorkspaceForSession } from "@/shared/api/chatWorkspaceScope";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useToast } from "@/components/ui/toast";
 import { ChatArtifactPreviewDialog } from "./ChatArtifactPreviewDialog";
 import "./AgentChatWindow.css";
 import { SudoPasswordDialog } from "./SudoPasswordDialog";
@@ -90,6 +91,7 @@ function ComposerControls({ children }: { children: React.ReactNode }) {
 export function AgentChatWindow({ adapter, attachmentDownloader, submitterRef, config, knowledgeBaseId, agentIdentity, speechScope, initialSession, pendingAttachments,
   onPendingAttachmentsChange, onSessionChange, onRunStateChange, createSendInput, onError, onInfo, onArtifactPreview, footerAddon, draft: controlledDraft, onDraftChange, composerRef: hostComposerRef, onPlanCommand, ...props }: AgentChatWindowProps) {
   const feedback = useChatFeedback();
+  const toast = useToast();
   const tabVisible = useTabVisibility();
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const [internalDraft, setInternalDraft] = useState("");
@@ -248,6 +250,10 @@ export function AgentChatWindow({ adapter, attachmentDownloader, submitterRef, c
         : config.workspaceCode ?? "");
     setArtifactPreview({ sessionCode, workspaceCode, runCode: message.runId ?? activeSession?.lastRunCode ?? "", item });
   }, [activeSession, config.workspaceCode, onArtifactPreview]);
+  const handleArtifactAction = useCallback((message: Ui.ChatMessage, item: Ui.ChatArtifactItem, action: Ui.ChatArtifactAction) => {
+    if (action === "save") toast.success(t("chat.artifactPreview.saveSuccess", { name: item.display }));
+    props.onArtifactAction?.(message, item, action);
+  }, [props.onArtifactAction, t, toast]);
   // Host callbacks may be inline. Their identity must not trigger another
   // runtime-state notification and a host refresh/render feedback loop.
   const runStateCallback = useRef(onRunStateChange);
@@ -336,7 +342,8 @@ export function AgentChatWindow({ adapter, attachmentDownloader, submitterRef, c
       userInputLabels: config.userInputLabels ?? userInputLabels,
     }}
     initialSession={session} pendingAttachments={attachments} createSendInput={createInput}
-    onSessionChange={handleSession} onPendingAttachmentsChange={handleAttachments} onRunStateChange={handleRun} />
+    onSessionChange={handleSession} onPendingAttachmentsChange={handleAttachments} onRunStateChange={handleRun}
+    onArtifactAction={handleArtifactAction} />
     {artifactPreview ? <ChatArtifactPreviewDialog
       open
       onOpenChange={(open) => { if (!open) setArtifactPreview(null); }}

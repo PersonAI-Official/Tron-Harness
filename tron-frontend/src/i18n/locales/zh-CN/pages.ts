@@ -1676,6 +1676,7 @@ export const pages = {
     },
     artifactPreview: {
       title: "预览：{{name}}",
+      saveSuccess: "{{name}} 保存成功",
       loading: "正在加载预览…",
       failed: "无法加载此交付文件。",
       workspaceMissing: "会话工作空间不可用，请重新打开会话后重试。",

@@ -1744,6 +1744,7 @@ export const pages = {
     },
     artifactPreview: {
       title: "Preview: {{name}}",
+      saveSuccess: "{{name}} saved successfully",
       loading: "Loading preview…",
       failed: "Unable to load this artifact.",
       workspaceMissing: "The session workspace is unavailable. Reopen the session and try again.",
