@@ -70,6 +70,10 @@ impl NativeModelScope {
         };
         let mut order = vec![];
         let mut refreshers: Vec<Arc<dyn sdk::ModelCatalogRefresh>> = vec![];
+        let fallback_context_window = harness
+            .framework_context_config()
+            .context
+            .default_context_window_tokens;
         let binding_configs = configs
             .iter()
             .flat_map(|config| {
@@ -91,6 +95,7 @@ impl NativeModelScope {
                 context,
                 config.clone(),
                 false,
+                fallback_context_window,
             )?;
             let summary_config = harness.framework_compaction_model_config(&config);
             let summary = add_binding(
@@ -101,6 +106,7 @@ impl NativeModelScope {
                 context,
                 summary_config,
                 true,
+                fallback_context_window,
             )?;
             bindings.summaries.insert(main.clone(), summary);
             refreshers.push(Arc::new(AuthorizedRefresh {
@@ -173,6 +179,7 @@ fn add_binding(
     context: &AgentRunContext,
     config: AgentModelConfig,
     auxiliary: bool,
+    fallback_context_window: u32,
 ) -> Result<fw::ModelRef, AgentError> {
     if config.model_code.starts_with("PERSON_AI:")
         && let Some(expected) = context
@@ -191,7 +198,18 @@ fn add_binding(
     }
     let wire = crate::adapters::outbound::model::http_model_client::sdk_config(&config)
         .map_err(AgentError::InvalidConfiguration)?;
-    let descriptor = eliteforge_agent_official_plugin_model_http::model_descriptor(&wire);
+    let mut descriptor = eliteforge_agent_official_plugin_model_http::model_descriptor(&wire);
+    let window = config
+        .context_window_tokens
+        .unwrap_or(fallback_context_window);
+    if descriptor.context_window_tokens.is_none() {
+        descriptor.context_window_tokens = Some(window as usize);
+    }
+    if descriptor.max_output_tokens.is_none() {
+        // An unspecified output limit must leave room for instructions and tools,
+        // including when the model catalog has no context-window metadata.
+        descriptor.max_output_tokens = Some((window / 4).max(1));
+    }
     let connection = fw::ModelConnection::new(
         &model.connection,
         Arc::new(TronChatModel {

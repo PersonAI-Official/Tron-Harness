@@ -699,6 +699,7 @@ impl AppState {
             .with_directory_inspector(Some(std::sync::Arc::new(
                 crate::adapters::outbound::application_directory::GitApplicationDirectoryInspector,
             )))
+            .with_short_term_memory(short_term_memory.clone())
             .with_active_runs(active_runs.clone())
             .with_prompt_service(prompts.clone()),
         )));

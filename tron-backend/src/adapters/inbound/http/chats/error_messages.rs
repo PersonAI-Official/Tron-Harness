@@ -5,6 +5,9 @@ use tron_i18n::t;
 // and never enter the user-facing message. Display text lives in locales/chat.yml
 // under `error.chat.*`.
 pub(super) fn message(code: &str, detail: &str, locale: SupportedLocale) -> String {
+    if let Some(message) = context_budget_message(detail, locale) {
+        return message;
+    }
     let translated = match code {
         "CHAT_ATTACHMENT_TOO_LARGE" => t!("error.chat.attachment_too_large", locale = locale),
         "CHAT_ATTACHMENT_INVALID" => t!("error.chat.attachment_invalid", locale = locale),
@@ -194,6 +197,31 @@ pub(super) fn message(code: &str, detail: &str, locale: SupportedLocale) -> Stri
         tracing::debug!(code, detail, "chat error diagnostic");
     }
     translated.into_owned()
+}
+
+pub(super) fn context_budget_message(detail: &str, locale: SupportedLocale) -> Option<String> {
+    if let Some((_, suffix)) = detail.split_once("context budget exceeded: tron_context_block:") {
+        let id = suffix.split_whitespace().next().unwrap_or_default();
+        let id = match id {
+            "framework.instructions" => "seed_prompt_prefix",
+            "framework.history" => "current_session_history",
+            "current_session_checkpoint" => "conversation_history_summary",
+            _ => id,
+        };
+        let name = crate::application::short_term_memory::host_block_text_keys(id)
+            .map(|keys| tron_i18n::translate(locale.as_str(), keys.display_name).into_owned())
+            .unwrap_or_else(|| id.to_owned());
+        return Some(
+            t!(
+                "error.chat.context_block_budget_exceeded",
+                locale = locale,
+                block = name
+            ),
+        );
+    }
+    detail
+        .contains("context budget exceeded:")
+        .then(|| t!("error.chat.context_budget_exceeded", locale = locale).into_owned())
 }
 
 /// Locale of the current request scope.

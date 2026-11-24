@@ -3,7 +3,9 @@ mod compaction_details;
 mod context_assembly;
 pub(crate) use compaction_details::{CompactionBlock, compaction_blocks};
 mod block_metadata;
-pub(crate) use block_metadata::{context_block_catalog, native_context_block_metadata};
+pub(crate) use block_metadata::{
+    context_block_catalog, host_block_text_keys, native_context_block_metadata,
+};
 pub use context_assembly::{SavedContextAssembly, context_assembly_error_descriptor};
 mod assembler;
 mod config;

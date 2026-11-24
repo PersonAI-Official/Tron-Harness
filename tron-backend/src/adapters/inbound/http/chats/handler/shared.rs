@@ -34,11 +34,23 @@ pub(crate) struct ChatSsePayload {
 impl ChatSsePayload {
     pub(crate) fn agui(
         event_name: impl Into<String>,
-        data: Value,
+        mut data: Value,
         locale: SupportedLocale,
     ) -> Self {
+        let event_name = event_name.into();
+        if event_name == "RUN_ERROR" {
+            if let Some(message) = data
+                .get("message")
+                .and_then(Value::as_str)
+                .and_then(|detail| {
+                    super::super::error_messages::context_budget_message(detail, locale)
+                })
+            {
+                data["message"] = json!(message);
+            }
+        }
         Self {
-            event_name: event_name.into(),
+            event_name,
             data,
             locale,
         }

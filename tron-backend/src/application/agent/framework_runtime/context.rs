@@ -126,7 +126,7 @@ impl fw::ContextPreparationPolicy for TronContext {
                         source_revision: source_revision.clone(),
                     });
                 }
-                _ => return Err(error),
+                _ => return Err(identify_failed_budget_block(error)),
             },
         };
         let mut projection = projection;
@@ -187,4 +187,27 @@ impl fw::ContextPreparationPolicy for TronContext {
         state.prepared = Some(projection);
         Ok(fw::ContextPreparation::Ready(window))
     }
+}
+
+fn identify_failed_budget_block(error: fw::AgentError) -> fw::AgentError {
+    let fw::AgentError::ContextAssembly { report, source } = error else {
+        return error;
+    };
+    if matches!(
+        source.primary(),
+        fw::AgentError::Context(fw::ContextError::BudgetExceeded(_))
+    ) {
+        if let Some(block) = report
+            .blocks
+            .iter()
+            .find(|block| matches!(block.outcome, fw::ContextBlockOutcome::Failed { .. }))
+        {
+            tracing::warn!(block_id = %block.id, error = %source, "context block exceeded its budget");
+            let source = Box::new(fw::AgentError::Context(fw::ContextError::BudgetExceeded(
+                format!("tron_context_block:{}", block.id),
+            )));
+            return fw::AgentError::ContextAssembly { report, source };
+        }
+    }
+    fw::AgentError::ContextAssembly { report, source }
 }
