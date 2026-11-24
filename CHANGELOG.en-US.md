@@ -20,68 +20,37 @@ commits with that version number and the release-notes feature.
 Use direct HTTPS image URLs in Markdown, e.g. ![Feature demo](https://example.com/demo.gif).
 Remote images require a network connection and are not bundled with the text. -->
 
-## [1.1.0] - 2026-11-24
+## **[1.1.0] - 2026-11-24**
 
-### Agents and chat
+### **Agents & Chat**
 
-- Added plan mode and delivered-file display, and improved context budgets, memory usage, and run details.
-- Added configurable native tool exposure schemes and improved tool selection, coordinated file edits, and command output viewing.
-- Fixed repeated terminal commands after tool execution and missing context budgets in task and automation runs.
-- Fixed context budget calculations for tasks and automations using conversation automatic routing.
-- Renamed Dude to PersonAI and improved task management, session management, and assistant defaults.
-- Improved file editing tools to prevent concurrent write conflicts.
-- Fixed tasks and automations that could not run.
+- Introduced Plan Mode and deliverable file previews, and improved the visualization of chat context budgets, memory usage, and short-term memory.
+- Added configurable native toolsets for agents. Agents can now use different native tools depending on their use cases, rather than relying exclusively on the `tool_search` mechanism, improving execution efficiency.
+- Optimized file editing tools to prevent concurrent write conflicts.
+- Fixed an issue where the intelligent terminal repeatedly issued the same commands.
+- Fixed issues preventing tasks and automations from running.
+- Renamed "Good Buddy" to "Personal Assistant" and improved task and session management.
 
-### Remote access and capability packs
+### **Remote Access & Capability Packs**
 
-- Added encrypted LAN and public remote access, including mobile chat, attachment uploads, and paired-device management.
-- Added the PersonAI-Mobile companion app for mobile access: [PersonAI-Mobile](https://personai.chat/person-ai-index).
-- Enhanced the capability center and desktop-control packs with platform-specific distribution and queued operations while agents are busy.
-- Improved workspace deletion cleanup, the task board, and capability catalog loading speed.
+- Added encrypted remote access over both local networks and the internet, allowing users to participate in chats, upload attachments, and manage paired devices from mobile devices. Download [PersonAI-Mobile](https://personai.chat/person-ai-index).
+- Launched the Capability Center, enabling users to upload and share their own capability packs.
+- Added support for queuing capability pack operations while agents are busy.
+- Improved workspace deletion and cleanup, task boards, and capability directory loading performance.
+- Introduced a computer-use capability pack powered by CUA Driver, supporting Windows, macOS, and Linux.
 
-### Localization and reliability
+### **Internationalization & Stability**
 
-- Centralized translations for backend messages and improved knowledge retrieval notices and multilingual support.
-- Improved remote connections, message streams, and interaction history recovery; fixed lost run errors in chat history.
-- Improved startup after Windows updates and cleanup of long-path data.
 - Completed missing localization strings.
+- Improved remote connectivity, message streaming, and interaction history recovery. Fixed an issue where chat execution errors were not preserved in conversation history.
+- Optimized the Windows startup process and long-path data cleanup.
 
-### Automations and task execution
+### **Automation & Task Execution**
 
-- Persisted task execution records and automation runs with linked sessions, and recover interrupted runs left in progress at startup.
-- Added serial and parallel automation modes. Serial is the default; starting a new run stops the previous unfinished run.
-- Automation details now open with the "Execution instances" tab in the right sidebar, showing run status, summary, and linked session.
-- Hid the execution history and properties sidebar from the automation list; it remains available on automation details.
-- Completed Chinese and English labels for automation modes, execution history, and workspace fields.
-- Added permanent automation deletion, including its execution records.
-- Localized the automation detail “Edit” button for Chinese.
-- Moved automation metadata into the “Properties” tab in the right sidebar.
-- Added a task history sidebar to task details, with access to execution sessions.
-
-## [1.0.2] - 2026-11-11
-
-### Added
-
-- Release notes for the installed version appear in a centered dialog when you open the app.
-- Select “Got it” to stop automatic reminders for that version. New versions show their own notes.
-- Use “View release notes” in the version section of Settings to browse all versions, newest first.
-- Release notes support Chinese and English and follow the interface language.
-
-### Experience
-
-- Release notes are included with the app and can be read offline.
-- Close the dialog to read later. Unacknowledged notes appear again the next time you open the app.
-- The dialog stays centered with a maximum height. Long notes scroll inside it while the title and acknowledgement button remain visible.
-
-### Fixes and improvements
-
-- Fixed HTTPS download and redirect validation for the WSL backend, with download timeout and cancellation handling.
-- Fixed Windows update downloads, installer-helper startup and app restarts so failed downloads or helper errors do not close the app.
-- Clarified manual installation for macOS and Linux updates, with access to the downloaded installer or its folder.
-- Improved backend-environment troubleshooting so Settings can open a chat with diagnostic details.
-- Made speed, cache and context statistics adapt to the chat composer's available width.
-- Fixed authorization remaining in a waiting state after approval in the browser.
-- Clarified model input capabilities and converted bundled agent avatars to WebP to reduce asset size.
+- Added support for sequential and parallel automation execution modes, with sequential execution enabled by default.
+- Added support for permanently deleting automations.
+- Added an **Execution History** sidebar to automation details, allowing users to view execution statuses, summaries, and associated sessions.
+- Added a **Task History** sidebar to task details, allowing users to review task execution sessions.
 
 ## [1.0.1] - 2026-11-11
 
