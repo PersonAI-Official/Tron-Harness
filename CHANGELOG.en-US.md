@@ -52,6 +52,31 @@ Remote images require a network connection and are not bundled with the text. --
 - Added an **Execution History** sidebar to automation details, allowing users to view execution statuses, summaries, and associated sessions.
 - Added a **Task History** sidebar to task details, allowing users to review task execution sessions.
 
+## [1.0.2] - 2026-11-11
+
+### Added
+
+- Displayed the current version's release notes in the center of the app on startup.
+- After clicking **Got it**, the current version is no longer shown automatically; release notes for a new version appear after upgrading.
+- Added a **View release notes** entry in Settings, where users can review all versions with the latest first.
+- Added English release notes that switch with the interface language.
+
+### User experience
+
+- Bundled release notes with the app so they can be read offline.
+- Allowed users to close the dialog and read it later; unacknowledged release notes appear again the next time the app opens.
+- Kept the dialog centered, with long notes scrolling within a fixed height while the title and confirmation button remain visible.
+
+### Fixes and improvements
+
+- Fixed HTTPS downloads and redirects in the WSL backend, and added download timeout and cancellation handling.
+- Fixed Windows update downloads, installer-helper startup, and app restart flows to avoid exiting when a download fails or the installer helper encounters an error.
+- Clarified manual installation instructions for macOS and Linux update packages, which can be opened directly or in their containing folder after download.
+- Improved the backend environment troubleshooting entry point so users can start a chat from Settings with diagnostic information attached.
+- Adjusted speed, cache, and context statistics to the actual width of the chat composer, preventing crowding in narrow panels.
+- Fixed an issue where the app remained in a waiting state after browser authorization was approved.
+- Improved model input capability descriptions and converted built-in agent avatars to WebP to reduce asset size.
+
 ## [1.0.1] - 2026-11-11
 
 ### Workspaces and conversations
