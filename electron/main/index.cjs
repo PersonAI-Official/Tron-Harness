@@ -1009,11 +1009,13 @@ async function resolveArtifactPath(payload) {
   const sessionCode = artifactIdentifier(payload.sessionCode, "session");
   const runCode = artifactIdentifier(payload.runCode, "run");
   const itemId = artifactIdentifier(payload.itemId, "item");
+  const workspaceCode = artifactIdentifier(payload.workspaceCode, "workspace");
   const token = artifactIdentifier(payload.token, "token");
   const url = new URL(
     `/api/v1/chats/sessions/${encodeURIComponent(sessionCode)}/artifacts/${encodeURIComponent(runCode)}/${encodeURIComponent(itemId)}/desktop-resolve`,
     state.backendUrl,
   );
+  url.searchParams.set("workspaceCode", workspaceCode);
   const response = await net.fetch(url.toString(), {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
@@ -1049,6 +1051,7 @@ async function handleArtifactSave(payload, browserWindow) {
   const sessionCode = artifactIdentifier(payload.sessionCode, "session");
   const runCode = artifactIdentifier(payload.runCode, "run");
   const itemId = artifactIdentifier(payload.itemId, "item");
+  const workspaceCode = artifactIdentifier(payload.workspaceCode, "workspace");
   const token = artifactIdentifier(payload.token, "token");
   const suggestedName = typeof payload.suggestedName === "string" && payload.suggestedName.trim()
     ? path.basename(payload.suggestedName.trim()).slice(0, 200)
@@ -1057,6 +1060,7 @@ async function handleArtifactSave(payload, browserWindow) {
     `/api/v1/chats/sessions/${encodeURIComponent(sessionCode)}/artifacts/${encodeURIComponent(runCode)}/${encodeURIComponent(itemId)}/content`,
     state.backendUrl,
   );
+  url.searchParams.set("workspaceCode", workspaceCode);
   url.searchParams.set("disposition", "attachment");
   const response = await net.fetch(url.toString(), {
     headers: { Authorization: `Bearer ${token}` },

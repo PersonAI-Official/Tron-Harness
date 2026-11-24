@@ -1742,6 +1742,14 @@ export const pages = {
     floating: {
       resizeHint: "Drag to resize the window. Arrow keys fine-tune the size; hold Shift for larger steps.",
     },
+    artifactPreview: {
+      title: "Preview: {{name}}",
+      loading: "Loading preview…",
+      failed: "Unable to load this artifact.",
+      workspaceMissing: "The session workspace is unavailable. Reopen the session and try again.",
+      unsupported: "This file type cannot be previewed here. Use Save from the artifact menu.",
+      retry: "Retry",
+    },
     composerMetrics: {
       ariaLabel: "Session model metrics",
       unavailable: "0",

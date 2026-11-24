@@ -11,8 +11,17 @@ export function createAgentUiAdapter(host: ChatAdapter, config: ChatClientConfig
     onDelta: target?.onDelta,
     onAguiEvent: (event) => target?.onAguiEvent?.(toUiEvent(event, event.threadId ? nameForSession(event.threadId) : undefined)),
   });
-  const artifactContentUrl = (session: { sessionId: string }, input: { runId?: string | null; itemId: string; disposition: "inline" | "attachment" }) =>
-    `/api/v1/chats/sessions/${encodeURIComponent(session.sessionId)}/artifacts/${encodeURIComponent(input.runId ?? "")}/${encodeURIComponent(input.itemId)}/content?disposition=${input.disposition}`;
+  const workspaceCodeForSession = (session: Ui.ChatSession) => {
+    const metadata = session.metadata as { tron?: { workspaceCode?: unknown } } | undefined;
+    const workspaceCode = metadata?.tron?.workspaceCode;
+    return typeof workspaceCode === "string" ? workspaceCode.trim() : "";
+  };
+  const artifactContentUrl = (session: Ui.ChatSession, input: { runId?: string | null; itemId: string; disposition: "inline" | "attachment" }) => {
+    const query = new URLSearchParams({ disposition: input.disposition });
+    const workspaceCode = workspaceCodeForSession(session);
+    if (workspaceCode) query.set("workspaceCode", workspaceCode);
+    return `/api/v1/chats/sessions/${encodeURIComponent(session.sessionId)}/artifacts/${encodeURIComponent(input.runId ?? "")}/${encodeURIComponent(input.itemId)}/content?${query}`;
+  };
   return {
     artifactContentUrl,
     artifactAction: async (session, input) => {
@@ -30,6 +39,7 @@ export function createAgentUiAdapter(host: ChatAdapter, config: ChatClientConfig
             sessionCode: session.sessionId,
             runCode: input.runId ?? "",
             itemId: input.itemId,
+            workspaceCode: workspaceCodeForSession(session),
             token,
             suggestedName: input.itemId,
           }) as { status?: string; message?: string } | null;

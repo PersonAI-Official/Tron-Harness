@@ -39,15 +39,16 @@ impl ChatSsePayload {
     ) -> Self {
         let event_name = event_name.into();
         if event_name == "RUN_ERROR" {
-            if let Some(message) = data
+            // Framework details can be raw transport diagnostics; localize them
+            // at the request boundary and keep the original detail in server logs.
+            let code = data.get("code").and_then(Value::as_str).unwrap_or_default();
+            let detail = data
                 .get("message")
                 .and_then(Value::as_str)
-                .and_then(|detail| {
-                    super::super::error_messages::context_budget_message(detail, locale)
-                })
-            {
-                data["message"] = json!(message);
-            }
+                .unwrap_or_default();
+            data["message"] = json!(super::super::error_messages::message(
+                code, detail, locale
+            ));
         }
         Self {
             event_name,

@@ -191,6 +191,10 @@ error.chat.model_failed:
   en: "The model service failed. Check its configuration and availability before retrying."
   zh-CN: "模型服务调用失败，请检查模型配置和服务状态后重试。"
 
+error.chat.model_transport_incomplete:
+  en: "The model connection ended before a complete response arrived. Check the conversation status before retrying."
+  zh-CN: "模型连接在完整响应到达前中断。请先检查会话状态，再重试。"
+
 error.chat.tool_failed:
   en: "A tool failed. Check the run details before retrying."
   zh-CN: "工具执行失败，请检查运行详情后重试。"

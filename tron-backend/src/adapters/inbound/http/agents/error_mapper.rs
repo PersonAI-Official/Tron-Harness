@@ -8,6 +8,7 @@ use crate::{
     application::agent::{AgentAguiStreamError, AgentInvocationError},
     domain::agent::{AgentManagementError, AgentRunHistoryError},
     response::ApiResponse,
+    shared::locale::SupportedLocale,
 };
 
 /// Locale already resolved for the current request by the profile middleware.
@@ -19,7 +20,7 @@ fn request_locale() -> String {
 
 pub fn agent_error_response(error: AgentInvocationError) -> Response {
     let locale = request_locale();
-    // Dynamic runtime details are produced by the agent runtime and forwarded as-is.
+    // Runtime diagnostics are logged by the shared mapper; the response uses this locale.
     let (status, code, dynamic_message) = match error {
         AgentInvocationError::PromptRequired => {
             (StatusCode::BAD_REQUEST, "AGENT_PROMPT_REQUIRED", None)
@@ -76,27 +77,12 @@ pub fn agent_error_response(error: AgentInvocationError) -> Response {
             None,
         ),
     };
-    let message = match dynamic_message {
-        Some(message) => message,
-        None => tron_i18n::t!(agent_message_key(code), locale = &locale).into_owned(),
-    };
+    let message = super::super::chats::error_messages::message(
+        code,
+        dynamic_message.as_deref().unwrap_or_default(),
+        SupportedLocale::from_raw(&locale),
+    );
     (status, Json(ApiResponse::error(code, message))).into_response()
-}
-
-fn agent_message_key(code: &str) -> &'static str {
-    match code {
-        "AGENT_PROMPT_REQUIRED" => "agents.agent.prompt_required",
-        "AGENT_WORKSPACE_REQUIRED" => "agents.agent.workspace_required",
-        "AGENT_WORKSPACE_INVALID" => "agents.agent.workspace_invalid",
-        "AGENT_MODEL_REQUIRED" => "agents.agent.model_required",
-        "AGENT_HISTORY_STORAGE_FAILED" => "agents.agent.history_storage_failed",
-        "RUN_ALREADY_ACTIVE" => "agents.agent.run_already_active",
-        "AGENT_RUN_STOPPED" => "agents.agent.run_stopped",
-        "VARIABLE_RUNTIME_SECRET_DELIVERY_UNTRUSTED" => "agents.agent.runtime_secret_untrusted",
-        "AGENT_MAX_STEPS_EXCEEDED" => "agents.agent.max_steps_exceeded",
-        "AGENT_MAX_TOOL_CALLS_EXCEEDED" => "agents.agent.max_tool_calls_exceeded",
-        _ => "agents.agent.run_stopped",
-    }
 }
 
 pub fn agent_history_error_response(error: AgentRunHistoryError) -> Response {

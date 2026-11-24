@@ -18,7 +18,9 @@ import type { ContextAssemblySnapshot } from "../model/contextAssemblyReport";
 import { ChatComposerMetrics } from "./ChatComposerMetrics";
 import { OPEN_CHAT_CONTEXT_EVENT } from "@/shared/lib/shellEvents";
 import { requestApi } from "@/shared/api/httpClient";
+import { chatWorkspaceForSession } from "@/shared/api/chatWorkspaceScope";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ChatArtifactPreviewDialog } from "./ChatArtifactPreviewDialog";
 import "./AgentChatWindow.css";
 import { SudoPasswordDialog } from "./SudoPasswordDialog";
 import { ChatSpeechButton } from "./ChatSpeechButton";
@@ -86,7 +88,7 @@ function ComposerControls({ children }: { children: React.ReactNode }) {
 
 /** Product context adapter only. Rendering, streaming, queues, stop and replay belong to Agent UI. */
 export function AgentChatWindow({ adapter, attachmentDownloader, submitterRef, config, knowledgeBaseId, agentIdentity, speechScope, initialSession, pendingAttachments,
-  onPendingAttachmentsChange, onSessionChange, onRunStateChange, createSendInput, onError, onInfo, footerAddon, draft: controlledDraft, onDraftChange, composerRef: hostComposerRef, onPlanCommand, ...props }: AgentChatWindowProps) {
+  onPendingAttachmentsChange, onSessionChange, onRunStateChange, createSendInput, onError, onInfo, onArtifactPreview, footerAddon, draft: controlledDraft, onDraftChange, composerRef: hostComposerRef, onPlanCommand, ...props }: AgentChatWindowProps) {
   const feedback = useChatFeedback();
   const tabVisible = useTabVisibility();
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
@@ -114,6 +116,7 @@ export function AgentChatWindow({ adapter, attachmentDownloader, submitterRef, c
   const [activeSessionCode, setActiveSessionCode] = useState<string | null>(initialSession?.sessionCode ?? null);
   const turnDeletion = useDeleteTurnConfirmation(activeSessionCode);
   const [activeSession, setActiveSession] = useState<ChatSession | null>(initialSession ?? null);
+  const [artifactPreview, setArtifactPreview] = useState<{ sessionCode: string; workspaceCode: string; runCode: string; item: Ui.ChatArtifactItem } | null>(null);
   const initialSessionRef = useRef(initialSession);
   initialSessionRef.current = initialSession;
   const [contextOpen, setContextOpen] = useState(false);
@@ -232,6 +235,19 @@ export function AgentChatWindow({ adapter, attachmentDownloader, submitterRef, c
   }, [activeSession, config.floating]);
   const handleAttachments = useCallback((value: Ui.ChatMessageAttachment[]) =>
     onPendingAttachmentsChange?.(value.map(fromUiAttachment)), [onPendingAttachmentsChange]);
+  const handleArtifactPreview = useCallback((message: Ui.ChatMessage, item: Ui.ChatArtifactItem) => {
+    if (onArtifactPreview) {
+      onArtifactPreview(message, item);
+      return;
+    }
+    const sessionCode = message.sessionId;
+    const workspaceCode = chatWorkspaceForSession(sessionCode) ?? (activeSession?.sessionCode === sessionCode
+      ? activeSession.workspaceCode ?? config.workspaceCode ?? ""
+      : initialSessionRef.current?.sessionCode === sessionCode
+        ? initialSessionRef.current.workspaceCode ?? config.workspaceCode ?? ""
+        : config.workspaceCode ?? "");
+    setArtifactPreview({ sessionCode, workspaceCode, runCode: message.runId ?? activeSession?.lastRunCode ?? "", item });
+  }, [activeSession, config.workspaceCode, onArtifactPreview]);
   // Host callbacks may be inline. Their identity must not trigger another
   // runtime-state notification and a host refresh/render feedback loop.
   const runStateCallback = useRef(onRunStateChange);
@@ -297,6 +313,7 @@ export function AgentChatWindow({ adapter, attachmentDownloader, submitterRef, c
       workspaceCode={activeSession.workspaceCode ?? config.workspaceCode ?? ""}
       assistantCode={activeSession.ownerAssistantCode ?? undefined} knowledgeBaseId={knowledgeBaseId} />}
     <ChatRuntimeWindow {...props} adapter={uiAdapter} attachmentDownloader={downloadAttachment} submitterRef={runtimeSubmitterRef}
+    onArtifactPreview={handleArtifactPreview}
     draft={draft} onDraftChange={changeDraft} composerRef={setComposerRef}
     renderAttachmentControl={props.renderAttachmentControl ?? ((control) => <ChatAttachmentButton {...control} />)}
     footerAddon={<><ComposerControls>{footerAddon}</ComposerControls><ChatComposerMetrics metrics={composerSnapshot?.sessionCode === activeSessionCode ? composerSnapshot.metrics : null} onOpen={openContext} /><ChatSpeechButton composer={composerRef}
@@ -320,6 +337,14 @@ export function AgentChatWindow({ adapter, attachmentDownloader, submitterRef, c
     }}
     initialSession={session} pendingAttachments={attachments} createSendInput={createInput}
     onSessionChange={handleSession} onPendingAttachmentsChange={handleAttachments} onRunStateChange={handleRun} />
+    {artifactPreview ? <ChatArtifactPreviewDialog
+      open
+      onOpenChange={(open) => { if (!open) setArtifactPreview(null); }}
+      sessionCode={artifactPreview.sessionCode}
+      workspaceCode={artifactPreview.workspaceCode}
+      runCode={artifactPreview.runCode}
+      item={artifactPreview.item}
+    /> : null}
     <Dialog open={contextOpen} onOpenChange={setContextOpen}>
       <DialogContent className="flex h-[min(80dvh,900px)] flex-col sm:max-w-3xl">
         <DialogHeader><DialogTitle>{t("chat.shortTermMemory.shortTermMemoryTab")}</DialogTitle></DialogHeader>

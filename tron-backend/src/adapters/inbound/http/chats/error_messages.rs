@@ -4,9 +4,12 @@ use tron_i18n::t;
 // HTTP and SSE share stable error codes; diagnostic details stay in server logs
 // and never enter the user-facing message. Display text lives in locales/chat.yml
 // under `error.chat.*`.
-pub(super) fn message(code: &str, detail: &str, locale: SupportedLocale) -> String {
+pub(crate) fn message(code: &str, detail: &str, locale: SupportedLocale) -> String {
     if let Some(message) = context_budget_message(detail, locale) {
         return message;
+    }
+    if is_incomplete_model_transport(detail) {
+        return t!("error.chat.model_transport_incomplete", locale = locale).into_owned();
     }
     let translated = match code {
         "CHAT_ATTACHMENT_TOO_LARGE" => t!("error.chat.attachment_too_large", locale = locale),
@@ -197,6 +200,12 @@ pub(super) fn message(code: &str, detail: &str, locale: SupportedLocale) -> Stri
         tracing::debug!(code, detail, "chat error diagnostic");
     }
     translated.into_owned()
+}
+
+fn is_incomplete_model_transport(detail: &str) -> bool {
+    let detail = detail.to_ascii_lowercase();
+    detail.contains("model transport ended before a complete response")
+        || detail.contains("model connection unavailable")
 }
 
 pub(super) fn context_budget_message(detail: &str, locale: SupportedLocale) -> Option<String> {

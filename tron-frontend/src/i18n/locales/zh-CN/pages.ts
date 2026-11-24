@@ -1674,6 +1674,14 @@ export const pages = {
     floating: {
       resizeHint: "拖动调整窗口大小；方向键微调，按住 Shift 加快调整。",
     },
+    artifactPreview: {
+      title: "预览：{{name}}",
+      loading: "正在加载预览…",
+      failed: "无法加载此交付文件。",
+      workspaceMissing: "会话工作空间不可用，请重新打开会话后重试。",
+      unsupported: "当前不支持预览此文件类型，可从交付物菜单中选择保存。",
+      retry: "重试",
+    },
     composerMetrics: {
       ariaLabel: "会话模型指标",
       unavailable: "0",
