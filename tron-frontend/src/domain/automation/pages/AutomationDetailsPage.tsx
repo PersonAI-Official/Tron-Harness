@@ -1,6 +1,7 @@
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { X } from "lucide-react";
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -87,9 +88,9 @@ export function AutomationDetailsPage() {
   const workspaceCode = useTabStore((state) => state.workspaceCode);
   const panelId = panelTabId(tabPanelScopeId, workspaceCode);
   const { formatDateTime } = useLocaleFormatters();
-  const formatTimestamp = (value?: string | null) => value
+  const formatTimestamp = useCallback((value?: string | null) => value
     ? formatDateTime(value, { dateStyle: "medium", timeStyle: "short" })
-    : pt("Not available");
+    : pt("Not available"), [formatDateTime, pt]);
   const automationCode = searchParams.get("automationCode") ?? "";
   const { automation, refresh, setAutomation } = useAutomationDetail(automationCode);
   const toast = useToast();
