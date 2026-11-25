@@ -100,6 +100,7 @@ struct ActiveRunEntry {
     runtime_adapter_key: String,
     supports_steer: bool,
     cancellation_sender: watch::Sender<bool>,
+    pending_input: tokio::sync::Notify,
     state: Mutex<ActiveRunMutableState>,
 }
 
@@ -313,6 +314,7 @@ impl ActiveRunRegistry {
             runtime_adapter_key: runtime_adapter_key.to_string(),
             supports_steer,
             cancellation_sender,
+            pending_input: tokio::sync::Notify::new(),
             state: Mutex::new(ActiveRunMutableState {
                 starting,
                 context_compaction,
@@ -587,6 +589,7 @@ impl ActiveRunEntry {
         match accept() {
             Ok((value, input)) => {
                 state.pending.push_back(input);
+                self.pending_input.notify_one();
                 Ok(Ok(value))
             }
             Err(error) => Ok(Err(error)),
@@ -595,6 +598,17 @@ impl ActiveRunEntry {
 }
 
 impl ActiveRunControl {
+    pub(super) async fn wait_for_pending(&self) -> Result<Vec<AgentSteerInput>, ActiveRunError> {
+        loop {
+            let notified = self.entry.pending_input.notified();
+            let inputs = self.take_pending()?;
+            if !inputs.is_empty() {
+                return Ok(inputs);
+            }
+            notified.await;
+        }
+    }
+
     pub fn take_pending(&self) -> Result<Vec<AgentSteerInput>, ActiveRunError> {
         let mut state = self
             .entry

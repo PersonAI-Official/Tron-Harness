@@ -501,6 +501,9 @@ impl FrameworkHost {
                 ))));
         }
         if let Some(control) = steering {
+            request.extensions.insert(
+                eliteforge_agent_official_plugin_tools_local::CommandCompletions::new(&session),
+            );
             request
                 .extensions
                 .insert(fw::ContextCompactionObserverBinding(Arc::new(

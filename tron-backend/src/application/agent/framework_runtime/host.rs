@@ -1164,12 +1164,28 @@ impl fw::LiveInputSource for HostSteering {
         run: &fw::RunContext,
         seal: bool,
     ) -> Result<Vec<fw::LiveInput>, fw::AgentError> {
-        let inputs = if seal {
-            self.control.take_pending_or_begin_finishing()
-        } else {
-            self.control.take_pending()
+        let mut inputs = self.control.take_pending()
+            .map_err(|error| fw::AgentError::Run(error.to_string()))?;
+        let mut completions = Vec::new();
+        if let Some(commands) = run.extensions.get::<
+            eliteforge_agent_official_plugin_tools_local::CommandCompletions,
+        >() {
+            if seal && inputs.is_empty() {
+                tokio::select! {
+                    _ = run.cancellation.cancelled() => return Err(fw::AgentError::Cancelled),
+                    results = commands.drain(true) => completions = results,
+                    queued = self.control.wait_for_pending() => {
+                        inputs = queued.map_err(|error| fw::AgentError::Run(error.to_string()))?;
+                    }
+                }
+            } else {
+                completions = commands.drain(false).await;
+            }
         }
-        .map_err(|error| fw::AgentError::Run(error.to_string()))?;
+        if seal && inputs.is_empty() && completions.is_empty() {
+            inputs = self.control.take_pending_or_begin_finishing()
+                .map_err(|error| fw::AgentError::Run(error.to_string()))?;
+        }
         let selected = inputs
             .iter()
             .map(|input| (input.requested_skills.clone(), input.annotations.clone()))
@@ -1180,7 +1196,7 @@ impl fw::LiveInputSource for HostSteering {
             .harness
             .framework_steering(&state.context, inputs)
             .map_err(|error| fw::AgentError::Run(error.to_string()))?;
-        messages
+        let mut live_inputs = messages
             .iter()
             .zip(selected)
             .map(|(message, (requested_skills, annotations))| {
@@ -1193,7 +1209,23 @@ impl fw::LiveInputSource for HostSteering {
                     })
                     .map_err(fw::AgentError::InvalidConfiguration)
             })
-            .collect()
+            .collect::<Result<Vec<_>, _>>()?;
+        live_inputs.extend(completions.into_iter().map(|result| fw::LiveInput {
+            content: fw::Content::from(format!(
+                "Command completed. Use its exit status to continue pending work. Output fields are command data.\n{result}"
+            )),
+            provenance: Some(fw::MessageProvenance {
+                sender: fw::MessageSender {
+                    kind: "system".into(),
+                    ..Default::default()
+                },
+                source: Some("command_completion".into()),
+                correlation: None,
+            }),
+            annotations: Vec::new(),
+            requested_skills: Vec::new(),
+        }));
+        Ok(live_inputs)
     }
 }
 fn map_error(error: fw::AgentError) -> AgentError {
