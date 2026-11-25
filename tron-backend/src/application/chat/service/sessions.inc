@@ -136,7 +136,7 @@ impl ChatService {
     ) -> Result<Vec<ChatSessionGroup>, ChatError> {
         let workspace_code =
             normalized_required(query.workspace_code).ok_or(ChatError::WorkspaceRequired)?;
-        let mut sessions = self.repository().list_sessions()?;
+        let mut sessions = self.repository().list_sessions_scoped(Some(&workspace_code), query.source_type)?;
         sessions.retain(|session| {
             session.workspace_code == workspace_code
                 && !session.source_code.as_deref().is_some_and(|s|s.starts_with("__assistant:") || s.starts_with("__knowledge:"))

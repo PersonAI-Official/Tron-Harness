@@ -18,6 +18,7 @@ pub enum TaskError {
     StatusNotInFlow,
     InvalidProgress,
     InvalidRequest,
+    SessionRunActive,
     StorageFailure,
 }
 
@@ -42,6 +43,7 @@ impl fmt::Display for TaskError {
             Self::StatusNotInFlow => formatter.write_str("task status is not in the task flow"),
             Self::InvalidProgress => formatter.write_str("task progress is invalid"),
             Self::InvalidRequest => formatter.write_str("task request is invalid"),
+            Self::SessionRunActive => formatter.write_str("linked chat session is running"),
             Self::StorageFailure => formatter.write_str("task storage failure"),
         }
     }

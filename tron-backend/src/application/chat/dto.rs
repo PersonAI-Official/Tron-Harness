@@ -19,6 +19,7 @@ use crate::{
 #[serde(rename_all = "camelCase")]
 pub struct ChatSessionQuery {
     pub workspace_code: Option<String>,
+    pub source_type: Option<ChatSessionSourceType>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

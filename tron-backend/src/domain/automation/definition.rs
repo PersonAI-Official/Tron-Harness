@@ -233,6 +233,7 @@ pub enum AutomationError {
     InvalidCron,
     InvalidStatus,
     ArchivedMutationDenied,
+    SessionRunActive,
     StorageFailure,
 }
 
@@ -251,6 +252,7 @@ impl fmt::Display for AutomationError {
             Self::ArchivedMutationDenied => {
                 formatter.write_str("archived automation cannot be modified")
             }
+            Self::SessionRunActive => formatter.write_str("linked chat session is running"),
             Self::StorageFailure => formatter.write_str("automation storage failure"),
         }
     }

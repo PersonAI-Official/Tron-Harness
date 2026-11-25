@@ -472,7 +472,23 @@ impl TaskService {
         Ok(result)
     }
 
-    pub fn delete_task(&self, task_code: &str) -> Result<(), TaskError> {
+    pub(crate) fn confirm_task_session_owner(&self, task_code: &str) -> Result<(), TaskError> {
+        let _repository = self
+            .repository
+            .lock()
+            .expect("task repository mutex poisoned");
+        self.get_task_record(task_code).map(|_| ())
+    }
+
+    pub fn delete_task(
+        &self,
+        task_code: &str,
+        chats: &crate::application::chat::ChatService,
+    ) -> Result<(), TaskError> {
+        let mut repository = self
+            .repository
+            .lock()
+            .expect("task repository mutex poisoned");
         let task = self.get_task_record(task_code)?;
         let has_subtasks = self.all_tasks()?.iter().any(|candidate| {
             candidate.parent_task_code.as_deref() == Some(task.task_code.as_str())
@@ -480,10 +496,17 @@ impl TaskService {
         if has_subtasks {
             return Err(TaskError::SubtaskExists);
         }
-        self.repository
-            .lock()
-            .expect("task repository mutex poisoned")
-            .delete_task(&task.task_code)?;
+        chats
+            .purge_task_sessions(&task.task_code, task.work_session_code.as_deref())
+            .map_err(|error| {
+                tracing::warn!(%error, task_code, "Task session cleanup failed");
+                match error {
+                    crate::domain::chat::ChatError::SessionRunActive => TaskError::SessionRunActive,
+                    _ => TaskError::StorageFailure,
+                }
+            })?;
+        repository.delete_task(&task.task_code)?;
+        drop(repository);
         self.publish_task_deleted_event(&task);
         Ok(())
     }

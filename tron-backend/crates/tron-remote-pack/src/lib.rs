@@ -472,6 +472,46 @@ impl TronRemotePack {
     }
 }
 
+fn session_key(session: &Value) -> (&str, &str) {
+    (
+        session["updatedAt"].as_str().unwrap_or_default().trim_end_matches('Z'),
+        session["sessionCode"].as_str().unwrap_or_default(),
+    )
+}
+
+fn page_session_groups(
+    mut groups: Value,
+    cursor: Option<&str>,
+    limit: usize,
+) -> Result<(Value, Option<String>), RpcError> {
+    let cursor: Option<(String, String)> = cursor
+        .map(serde_json::from_str)
+        .transpose()
+        .map_err(|_| RpcError::invalid_params("invalid session cursor"))?;
+    let groups_array = groups.as_array_mut()
+        .ok_or_else(|| RpcError::internal("invalid session groups"))?;
+    let mut keys = groups_array.iter()
+        .filter_map(|group| group["sessions"].as_array())
+        .flatten()
+        .map(session_key)
+        .filter(|key| cursor.as_ref().is_none_or(|(time, code)| *key < (time.as_str(), code.as_str())))
+        .collect::<Vec<_>>();
+    keys.sort_unstable_by(|a, b| b.cmp(a));
+    let next = (keys.len() > limit).then(|| json!(keys[limit - 1]).to_string());
+    let selected = keys.into_iter().take(limit)
+        .map(|(_, code)| code.to_owned()).collect::<std::collections::HashSet<_>>();
+    for group in groups_array.iter_mut() {
+        if let Some(sessions) = group["sessions"].as_array_mut() {
+            sessions.retain(|session| selected.contains(session_key(session).1));
+        }
+        if let Some(codes) = group["pendingUserInputSessionCodes"].as_array_mut() {
+            codes.retain(|code| code.as_str().is_some_and(|code| selected.contains(code)));
+        }
+    }
+    groups_array.retain(|group| group["sessions"].as_array().is_some_and(|items| !items.is_empty()));
+    Ok((groups, next))
+}
+
 #[async_trait]
 impl SessionRpc for TronRemotePack {
     async fn list(&self, _ctx: &RemotePrincipal, params: SessionListParams) -> Result<SessionListResult, RpcError> {
@@ -479,8 +519,10 @@ impl SessionRpc for TronRemotePack {
             .workspace_for(params.filter.as_ref().and_then(|v| v.get("workspace")).and_then(Value::as_str))
             .await?;
         let data = self
-            .get("/api/v1/chats/session-groups", &[("workspaceCode", &workspace)])
+            .get("/api/v1/chats/session-groups", &[("workspaceCode", &workspace), ("sourceType", "MANUAL")])
             .await?;
+        let limit = params.limit.unwrap_or(50).clamp(1, 100) as usize;
+        let (data, next_cursor) = page_session_groups(data, params.cursor.as_deref(), limit)?;
         let groups = data.as_array().cloned().unwrap_or_default();
         let mut sessions = Vec::new();
         for group in groups {
@@ -492,11 +534,9 @@ impl SessionRpc for TronRemotePack {
                 }
             }
         }
-        let limit = params.limit.unwrap_or(50).clamp(1, 100) as usize;
-        sessions.truncate(limit);
         Ok(SessionListResult {
             sessions,
-            next_cursor: None,
+            next_cursor,
         })
     }
 
@@ -774,12 +814,19 @@ impl RpcMethod for TronMethod {
                     .await
             }
             "tron.session.groups" => {
-                self.pack
+                let groups = self.pack
                     .get(
                         "/api/v1/chats/session-groups",
-                        &[("workspaceCode", workspace.as_str())],
+                        &[("workspaceCode", workspace.as_str()), ("sourceType", "MANUAL")],
                     )
-                    .await
+                    .await?;
+                let Some(limit) = params.get("limit").and_then(Value::as_u64) else {
+                    return Ok(groups);
+                };
+                let (groups, next_cursor) = page_session_groups(
+                    groups, params.get("cursor").and_then(Value::as_str), limit.clamp(1, 100) as usize,
+                )?;
+                Ok(json!({"groups": groups, "nextCursor": next_cursor}))
             }
             "tron.chat.protocolEvents" => {
                 let session_code = params

@@ -43,7 +43,14 @@ pub trait ChatRepository: Send {
     fn delete_expired_heartbeat_session(&mut self, session_code: &str) -> Result<(), ChatError> {
         self.delete_session(session_code)
     }
-    fn list_sessions(&mut self) -> Result<Vec<ChatSession>, ChatError>;
+    fn list_sessions(&mut self) -> Result<Vec<ChatSession>, ChatError> {
+        self.list_sessions_scoped(None, None)
+    }
+    fn list_sessions_scoped(
+        &mut self,
+        workspace: Option<&str>,
+        source: Option<crate::domain::chat::ChatSessionSourceType>,
+    ) -> Result<Vec<ChatSession>, ChatError>;
     fn session_codes_by_workspaces(
         &mut self,
         workspace_codes: &[String],

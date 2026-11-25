@@ -29,6 +29,7 @@ pub fn task_error_response(error: TaskError) -> Response {
         TaskError::InvalidProgress | TaskError::InvalidRequest => {
             (StatusCode::BAD_REQUEST, "TASK_REQUEST_INVALID")
         }
+        TaskError::SessionRunActive => (StatusCode::CONFLICT, "CHAT_SESSION_RUN_ACTIVE"),
         TaskError::StorageFailure => (StatusCode::INTERNAL_SERVER_ERROR, "TASK_STORAGE_FAILED"),
     };
     (
@@ -58,6 +59,7 @@ fn task_message_key(error: &TaskError) -> &'static str {
         TaskError::FlowInUse => "tron.task.flow_in_use",
         TaskError::WorkspaceFlowHasOpenTasks => "tron.task.flow_switch_requires_closed_tasks",
         TaskError::InvalidProgress | TaskError::InvalidRequest => "tron.task.request_invalid",
+        TaskError::SessionRunActive => "error.chat.session_run_active",
         TaskError::StorageFailure => "tron.task.storage_failed",
     }
 }

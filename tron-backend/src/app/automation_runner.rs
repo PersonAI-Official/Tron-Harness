@@ -243,13 +243,18 @@ async fn run_automation_with_main_agent(
             None,
         )
         .map_err(|error| format!("Automation chat session creation failed: {error}"))?;
-    automations
-        .link_execution_session(
-            &automation.automation_code,
-            &execution.execution_code,
-            &session.session_code,
-        )
-        .map_err(|error| format!("Automation execution session link failed: {error:?}"))?;
+    if let Err(error) = automations.link_execution_session(
+        &automation.automation_code,
+        &execution.execution_code,
+        &session.session_code,
+    ) {
+        if let Err(cleanup_error) = chats.delete_session(&session.session_code)
+            && !matches!(cleanup_error, crate::domain::chat::ChatError::SessionNotFound)
+        {
+            tracing::warn!(%cleanup_error, session_code = %session.session_code, "Automation session cleanup failed");
+        }
+        return Err(format!("Automation execution session link failed: {error:?}").into());
+    }
     let (model, model_code, system_model_id) = if uses_main_agent {
         let requested_model = automation
             .model_code

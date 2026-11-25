@@ -543,17 +543,32 @@ impl ChatRepository for SqliteChatRepository {
     fn delete_expired_heartbeat_session(&mut self, id: &str) -> Result<(), ChatError> {
         self.delete_session_internal(id, true)
     }
-    fn list_sessions(&mut self) -> Result<Vec<ChatSession>, ChatError> {
+    fn list_sessions_scoped(
+        &mut self,
+        workspace: Option<&str>,
+        source: Option<ChatSessionSourceType>,
+    ) -> Result<Vec<ChatSession>, ChatError> {
+        let workspace = workspace.map(str::to_owned);
+        let source = source.map(|source| match source {
+            ChatSessionSourceType::Manual => "MANUAL",
+            ChatSessionSourceType::Task => "TASK",
+            ChatSessionSourceType::Automation => "AUTOMATION",
+            ChatSessionSourceType::Terminal => "TERMINAL",
+        });
         blocking(async {
             self.framework().await?;
             let db = self.host.shared_database().await.map_err(chat_error)?;
             let raw = db
-                .call_read(|c| -> Result<Vec<SessionProjection>, ChatError> {
+                .call_read(move |c| -> Result<Vec<SessionProjection>, ChatError> {
                     let mut statement = c
-                        .prepare(&format!("{SESSION_PROJECTION_SQL} ORDER BY l.session_id"))
+                        .prepare(&format!(
+                            "{SESSION_PROJECTION_SQL} WHERE (?1 IS NULL OR l.workspace_code = ?1) \
+                             AND (?2 IS NULL OR upper(coalesce(json_extract(l.business_json, '$.source_type'), 'MANUAL')) = ?2) \
+                             ORDER BY l.session_id"
+                        ))
                         .map_err(|_| ChatError::StorageFailure)?;
                     statement
-                        .query_map([], session_row)
+                        .query_map(params![workspace, source], session_row)
                         .map_err(|_| ChatError::StorageFailure)?
                         .collect::<Result<Vec<_>, _>>()
                         .map_err(|_| ChatError::StorageFailure)

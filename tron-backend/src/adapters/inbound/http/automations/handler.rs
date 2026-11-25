@@ -90,10 +90,11 @@ pub async fn patch_automation(
 }
 
 pub async fn delete_automation(
+    State(chats): State<crate::application::chat::ChatService>,
     State(automations): State<AutomationService>,
     Path(automation_code): Path<String>,
 ) -> Response {
-    match automations.delete_automation(&automation_code) {
+    match automations.delete_automation(&automation_code, &chats) {
         Ok(()) => Json(ApiResponse::success(DeleteAutomationView {
             automation_code,
         }))

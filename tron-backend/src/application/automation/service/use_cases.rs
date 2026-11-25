@@ -250,14 +250,34 @@ impl AutomationService {
         Ok(result)
     }
 
-    pub fn delete_automation(&self, automation_code: &str) -> Result<(), AutomationError> {
+    pub fn delete_automation(
+        &self,
+        automation_code: &str,
+        chats: &crate::application::chat::ChatService,
+    ) -> Result<(), AutomationError> {
         let automation = self.get_automation_record(automation_code)?;
         self.runtime.unregister(&automation.automation_code);
-        let result = self
-            .repository
-            .lock()
-            .expect("automation repository mutex poisoned")
-            .delete_automation(automation_code);
+        let result = (|| {
+            let mut repository = self
+                .repository
+                .lock()
+                .expect("automation repository mutex poisoned");
+            let sessions = repository
+                .list_execution_records(automation_code)?
+                .into_iter()
+                .filter_map(|record| record.session_code)
+                .collect();
+            chats
+                .purge_automation_sessions(automation_code, sessions)
+                .map_err(|error| {
+                    tracing::warn!(%error, automation_code, "Automation session cleanup failed");
+                    match error {
+                        crate::domain::chat::ChatError::SessionRunActive => AutomationError::SessionRunActive,
+                        _ => AutomationError::StorageFailure,
+                    }
+                })?;
+            repository.delete_automation(automation_code)
+        })();
         if let Err(error) = result {
             if error != AutomationError::NotFound
                 && let Err(sync_error) = self.sync_runtime(&automation)

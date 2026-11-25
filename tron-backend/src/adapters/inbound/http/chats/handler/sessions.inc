@@ -9,6 +9,7 @@ pub async fn list_session_groups(
 
     match state.chats.list_session_groups(ChatSessionQuery {
         workspace_code: Some(workspace_code),
+        source_type: query.source_type,
     }) {
         Ok(groups) => Json(ApiResponse::success(groups)).into_response(),
         Err(error) => chat_error_response(error),

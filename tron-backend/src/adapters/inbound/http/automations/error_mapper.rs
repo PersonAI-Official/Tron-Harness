@@ -51,6 +51,11 @@ pub fn automation_error_response(error: AutomationError) -> Response {
             "AUTOMATION_ARCHIVED_INVALID",
             "automations.archived_invalid",
         ),
+        AutomationError::SessionRunActive => (
+            StatusCode::CONFLICT,
+            "CHAT_SESSION_RUN_ACTIVE",
+            "error.chat.session_run_active",
+        ),
         AutomationError::StorageFailure => (
             StatusCode::INTERNAL_SERVER_ERROR,
             "AUTOMATION_STORAGE_FAILED",

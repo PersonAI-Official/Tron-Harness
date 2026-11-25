@@ -240,6 +240,16 @@ pub async fn execute_task(
         }
     };
 
+    // Recheck after creating the session, synchronized with task deletion.
+    if let Err(error) = state.tasks.confirm_task_session_owner(&task.task_code) {
+        if let Err(cleanup_error) = state.chats.delete_session(&session.session_code)
+            && !matches!(cleanup_error, crate::domain::chat::ChatError::SessionNotFound)
+        {
+            tracing::warn!(%cleanup_error, session_code = %session.session_code, "Task session cleanup failed");
+        }
+        return task_error_response(error);
+    }
+
     let run_code = generate_agent_run_code();
     let session_code = session.session_code.clone();
 
@@ -273,10 +283,11 @@ pub async fn list_task_executions(
 }
 
 pub async fn delete_task(
+    State(chats): State<crate::application::chat::ChatService>,
     State(tasks): State<TaskService>,
     Path(task_code): Path<String>,
 ) -> Response {
-    match tasks.delete_task(&task_code) {
+    match tasks.delete_task(&task_code, &chats) {
         Ok(()) => Json(ApiResponse::success(
             serde_json::json!({ "taskCode": task_code }),
         ))
