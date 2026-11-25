@@ -202,7 +202,7 @@ def uninstall(delete_user_data=False):
                         shutil.rmtree(entry)
 
 
-def serve(version, port, nonce):
+def serve(version, port, nonce, startup_timeout_seconds):
     root, desktop, release = directories(version)
     if not re.fullmatch(r"[0-9a-f]{32}", nonce) or not 1024 <= port <= 65535:
         raise ValueError("invalid-launch-parameters")
@@ -263,7 +263,7 @@ def serve(version, port, nonce):
             child = subprocess.Popen(["setpriv", "--pdeathsig", "TERM", "--", str(release / "tron-backend")], cwd=root, env=environment, stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True)
             opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
             ready = False
-            deadline = time.monotonic() + 90
+            deadline = time.monotonic() + startup_timeout_seconds
             while child.poll() is None and not stopping.is_set():
                 if not ready:
                     try:
@@ -306,7 +306,7 @@ try:
     elif command == "install":
         install(sys.argv[2], sys.argv[3])
     elif command == "serve":
-        serve(sys.argv[2], int(sys.argv[3]), sys.argv[4])
+        serve(sys.argv[2], int(sys.argv[3]), sys.argv[4], int(sys.argv[5]))
     else:
         raise ValueError("unknown-runtime-command")
 except Exception as error:

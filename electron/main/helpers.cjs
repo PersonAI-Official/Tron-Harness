@@ -82,12 +82,15 @@ function requestHealth(url) {
   });
 }
 
-async function waitBackendReady(url, attempts = 120, intervalMs = 150) {
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
+const BACKEND_STARTUP_TIMEOUT_MS = 10 * 60 * 1000;
+
+async function waitBackendReady(url) {
+  const deadline = performance.now() + BACKEND_STARTUP_TIMEOUT_MS;
+  while (performance.now() < deadline) {
     if (await requestHealth(url)) {
       return true;
     }
-    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    await new Promise((resolve) => setTimeout(resolve, Math.min(150, deadline - performance.now())));
   }
 
   return false;
@@ -310,5 +313,6 @@ module.exports = {
   resolveResourcesDir,
   resolveSidecarPath,
   sanitizeUrl,
+  BACKEND_STARTUP_TIMEOUT_MS,
   waitBackendReady
 };

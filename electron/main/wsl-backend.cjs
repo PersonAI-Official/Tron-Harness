@@ -6,7 +6,7 @@ const { execFile, spawn } = require("node:child_process");
 const { once } = require("node:events");
 const { promisify } = require("node:util");
 const { buildApiUrl, normalizeVersion, readJsonResponse } = require("./updater.cjs");
-const { findFreePort } = require("./helpers.cjs");
+const { BACKEND_STARTUP_TIMEOUT_MS, findFreePort } = require("./helpers.cjs");
 const { secureDownloadUrl } = require("./wsl-download.cjs");
 
 const execFileAsync = promisify(execFile);
@@ -268,7 +268,7 @@ class WslBackend {
       if (attempt === 79) throw new Error("wsl-no-free-port");
     }
     const nonce = crypto.randomBytes(16).toString("hex");
-    const serveArgs = ["python3", "-u", "-c", runtime, "serve", info.backendVersion, String(port), nonce];
+    const serveArgs = ["python3", "-u", "-c", runtime, "serve", info.backendVersion, String(port), nonce, String(BACKEND_STARTUP_TIMEOUT_MS / 1000)];
     const child = spawn("wsl.exe", argsFor(distro, serveArgs), { windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
     let output = "", errors = "";
     child.stdin.on("error", () => {});
@@ -283,7 +283,7 @@ class WslBackend {
     });
     try {
       await new Promise((resolve, reject) => {
-        const timer = setTimeout(() => done(new Error("wsl-backend-readiness-timeout")), 120000);
+        const timer = setTimeout(() => done(new Error("wsl-backend-readiness-timeout")), BACKEND_STARTUP_TIMEOUT_MS + 30_000);
         const closed = () => done(new Error(errors.trim() || "wsl-backend-exited"));
         const failed = (error) => done(error);
         const data = (chunk) => { output += chunk; if (output.includes("\n")) done(); };

@@ -20,6 +20,13 @@ commits with that version number and the release-notes feature.
 Use direct HTTPS image URLs in Markdown, e.g. ![Feature demo](https://example.com/demo.gif).
 Remote images require a network connection and are not bundled with the text. -->
 
+## [1.1.1] - 2026-11-25
+
+### Fixes
+
+- Fixed task and automation execution by starting runs in the backend.
+- Increased the desktop startup timeout for native and WSL backends to 10 minutes to avoid reporting failures during slow startups.
+
 ## [1.1.0] - 2026-11-24
 
 ### Desktop startup
