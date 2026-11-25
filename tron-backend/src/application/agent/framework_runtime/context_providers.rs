@@ -747,6 +747,10 @@ struct ScopedReduction {
     extensions: fw::Extensions,
     limits: fw::RunLimits,
 }
+fn retry_compaction_transport(error: &fw::AgentError) -> bool {
+    matches!(error.primary(), fw::AgentError::Model(fw::ModelError::Indeterminate(message))
+        if message == "model transport ended before a complete response")
+}
 #[async_trait]
 impl fw::ContextReducer for ScopedReduction {
     async fn project_history(
@@ -763,18 +767,28 @@ impl fw::ContextReducer for ScopedReduction {
         {
             run.extensions.insert((*model).clone());
         }
-        self.inner
-            .project_history(
-                &fw::ContextReductionInput {
-                    run: &run,
-                    limits: &self.limits,
-                    ..*input
-                },
-                summary_budget,
-                recent_turns,
-                cached_only,
-            )
-            .await
+        for attempt in 0..2 {
+            let result = self
+                .inner
+                .project_history(
+                    &fw::ContextReductionInput {
+                        run: &run,
+                        limits: &self.limits,
+                        ..*input
+                    },
+                    summary_budget,
+                    recent_turns,
+                    cached_only,
+                )
+                .await;
+            match result {
+                Err(ref error) if attempt == 0 && retry_compaction_transport(error) => {
+                    run.check_cancelled()?;
+                }
+                result => return result,
+            }
+        }
+        unreachable!()
     }
     async fn cached_projection(
         &self,
@@ -793,13 +807,23 @@ impl fw::ContextReducer for ScopedReduction {
         {
             run.extensions.insert((*model).clone());
         }
-        self.inner
-            .reduce(&fw::ContextReductionInput {
-                run: &run,
-                limits: &self.limits,
-                ..*input
-            })
-            .await
+        for attempt in 0..2 {
+            let result = self
+                .inner
+                .reduce(&fw::ContextReductionInput {
+                    run: &run,
+                    limits: &self.limits,
+                    ..*input
+                })
+                .await;
+            match result {
+                Err(ref error) if attempt == 0 && retry_compaction_transport(error) => {
+                    run.check_cancelled()?;
+                }
+                result => return result,
+            }
+        }
+        unreachable!()
     }
 }
 struct LiveSourceGuard {
