@@ -481,6 +481,7 @@ endif
 
 .PHONY: desktop-check
 desktop-check:
+	$(NODE) --check "$(ELECTRON_DIR)/main/updater.cjs"
 	$(NODE) --check "$(ELECTRON_DIR)/main/wsl-backend.cjs"
 	$(NODE) --check "$(ELECTRON_DIR)/main/wsl-download.cjs"
 	$(NODE) --check "$(ELECTRON_DIR)/main/index.cjs"

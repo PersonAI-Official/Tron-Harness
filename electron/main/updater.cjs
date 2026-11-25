@@ -591,8 +591,12 @@ class Updater {
         if (this.platformName === "linux" && filePath.toLowerCase().endsWith(".appimage")) await fsp.chmod(filePath, 0o755);
         const openError = await this.openInstaller(filePath);
         if (openError) throw new Error(String(openError));
-        // DMG and distribution packages require a user-driven installation.
-        // Keep the current app running until that installation is complete.
+        if (this.platformName === "darwin") {
+          // The DMG is user-driven, but the running copy must exit before its
+          // replacement can be copied into Applications.
+          this.setStatus({ type: "installing", version });
+          setTimeout(() => this.exit(0), 600).unref?.();
+        }
         return true;
       }
 
