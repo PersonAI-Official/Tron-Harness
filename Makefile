@@ -191,7 +191,7 @@ NODE ?= node
 # Keep the toolchain independent of the developer's host OS and Cargo caches.
 WSL_ARCH ?= x86_64
 WSL_BUILD_IMAGE := rust:1.95.0-bookworm
-SKIP_TESTS ?= true
+SKIP_TESTS ?= false
 
 # Compiler caches follow the current user, including Windows and Git worktrees.
 _BUILD_CACHE_HOME := $(if $(filter Windows_NT,$(OS)),$(if $(strip $(USERPROFILE)),$(subst \,/,$(USERPROFILE)),$(HOME)),$(HOME))

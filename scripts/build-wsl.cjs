@@ -31,20 +31,9 @@ const uid = process.getuid ? process.getuid() : 0;
 const gid = process.getgid ? process.getgid() : 0;
 const image = process.env.TRON_WSL_IMAGE;
 // Forward caller-supplied proxies to APT, Cargo and Git inside the container.
-// A loopback proxy on the host is not reachable as 127.0.0.1 from a Docker
-// container (especially with Colima), so forwarding it makes an otherwise
-// healthy build fail with a misleading APT connection error. Opt in only when
-// the proxy is intentionally reachable from the container network.
-const allowLoopbackProxy = process.env.TRON_WSL_USE_LOOPBACK_PROXY === 'true';
-const loopbackProxy = /^(?:https?|socks(?:4|5)?:\/\/)?(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:\/|$)/i;
 const proxyArgs = ['http_proxy', 'https_proxy', 'all_proxy', 'no_proxy'].flatMap((name) => {
     const value = process.env[name] ?? process.env[name.toUpperCase()];
-    if (!value) return [];
-    if (name !== 'no_proxy' && loopbackProxy.test(value) && !allowLoopbackProxy) {
-        console.warn('忽略容器不可达的本机代理：' + name + '=' + value);
-        return [];
-    }
-    return ['--env', name + '=' + value];
+    return value ? ['--env', name + '=' + value] : [];
 });
 for (const arch of requestedArch === 'all' ? Object.keys(targets) : [requestedArch]) {
     const [platform, target] = targets[arch];
