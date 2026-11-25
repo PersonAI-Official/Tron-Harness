@@ -1,16 +1,20 @@
 use crate::{
     application::{
         agent::{
-            AgentInvocationError, AgentInvocationService, AgentManagementService,
-            build_system_runtime_model_config,
+            AgentAguiStreamService, AgentInvocationError, AgentInvocationService,
+            AgentManagementService, generate_agent_run_code,
         },
         automation::{AutomationExecutionRunner, AutomationService},
-        chat::{ChatSendError, ChatService, CreateChatSessionCommand, SendChatMessageCommand},
+        chat::{
+            ChatSendError, ChatService, CreateChatSessionCommand, SendChatMessageCommand,
+            model_resolution::prepare_send_model,
+        },
         model::ModelService,
     },
     domain::{
         automation::{Automation, AutomationExecutionRecord, AutomationExecutionStatus},
         chat::ChatSessionSourceType,
+        model_provider::ModelSelection,
     },
 };
 
@@ -21,6 +25,7 @@ pub(super) struct MainAgentAutomationRunner {
     framework: crate::application::agent::FrameworkHost,
     automations: AutomationService,
     chats: ChatService,
+    presentation: AgentAguiStreamService,
     agent_management: AgentManagementService,
     models: ModelService,
     model_providers: crate::application::model_provider::ModelProviderService,
@@ -32,6 +37,7 @@ impl MainAgentAutomationRunner {
         framework: crate::application::agent::FrameworkHost,
         automations: AutomationService,
         chats: ChatService,
+        presentation: AgentAguiStreamService,
         agent_management: AgentManagementService,
         models: ModelService,
         model_providers: crate::application::model_provider::ModelProviderService,
@@ -41,6 +47,7 @@ impl MainAgentAutomationRunner {
             framework,
             automations,
             chats,
+            presentation,
             agent_management,
             models,
             model_providers,
@@ -53,6 +60,7 @@ impl AutomationExecutionRunner for MainAgentAutomationRunner {
     fn dispatch(&self, automation: Automation, execution: AutomationExecutionRecord) {
         let automations = self.automations.clone();
         let chats = self.chats.clone();
+        let presentation = self.presentation.clone();
         let agent_management = self.agent_management.clone();
         let models = self.models.clone();
         let model_providers = self.model_providers.clone();
@@ -108,6 +116,7 @@ impl AutomationExecutionRunner for MainAgentAutomationRunner {
                 execution.clone(),
                 automations.clone(),
                 chats,
+                presentation,
                 agent_management,
                 models,
                 model_providers,
@@ -181,6 +190,7 @@ async fn run_automation_with_main_agent(
     execution: AutomationExecutionRecord,
     automations: AutomationService,
     chats: ChatService,
+    presentation: AgentAguiStreamService,
     agent_management: AgentManagementService,
     models: ModelService,
     model_providers: crate::application::model_provider::ModelProviderService,
@@ -206,14 +216,13 @@ async fn run_automation_with_main_agent(
                 "Could not stop the previous automation run: {error:?}"
             ))
         })?;
-    let mut agent = agent;
     let agent_code = automation.agent_code.trim();
     let effective_agent_code = if agent_code.is_empty() {
         AUTOMATION_AGENT_CODE
     } else {
         agent_code
     };
-    let resolved_runtime = agent_management
+    let mut resolved_runtime = agent_management
         .resolve_workspace_agent_runtime(&automation.workspace_code, Some(effective_agent_code))
         .map_err(|error| {
             format!(
@@ -249,139 +258,86 @@ async fn run_automation_with_main_agent(
         &session.session_code,
     ) {
         if let Err(cleanup_error) = chats.delete_session(&session.session_code)
-            && !matches!(cleanup_error, crate::domain::chat::ChatError::SessionNotFound)
+            && !matches!(
+                cleanup_error,
+                crate::domain::chat::ChatError::SessionNotFound
+            )
         {
             tracing::warn!(%cleanup_error, session_code = %session.session_code, "Automation session cleanup failed");
         }
         return Err(format!("Automation execution session link failed: {error:?}").into());
     }
-    let (model, model_code, system_model_id) = if uses_main_agent {
-        let requested_model = automation
-            .model_code
+    let requested_model = automation
+        .model_code
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned);
+    let model_selection = if uses_main_agent {
+        requested_model
             .as_deref()
-            .map(str::trim)
-            .filter(|value| !value.is_empty());
-        let model =
-            if requested_model.is_none() || requested_model == Some("PERSON_AI:ROUTE:ChatAuto") {
-                let router = crate::application::model_router::AgentModelRouter::new(
-                    models.clone(),
-                    model_providers.clone(),
-                )
-                .with_agent_management(agent_management.clone());
-                let (model, route) = router
-                    .resolve_initial(
-                        &automation.workspace_code,
-                        &session.session_code,
-                        &resolved_runtime.agent_code,
-                        None,
-                    )
-                    .map_err(|error| format!("Automation model routing failed: {error}"))?;
-                agent = agent.with_auto_model_route(Some(route), Some(router));
-                model
-            } else {
-                models
-                    .text_agent_model_config(&automation.workspace_code, requested_model)
-                    .map_err(|error| format!("Text model resolution failed: {error}"))?
-                    .ok_or_else(|| {
-                        "No matching text model is configured for automation execution.".to_string()
-                    })?
-            };
-        let model_code = model.model_code.clone();
-        (model, Some(model_code), None)
+            .is_none_or(|code| code == "PERSON_AI:ROUTE:ChatAuto")
+            .then(ModelSelection::auto)
     } else {
-        let system_model_id = automation
-            .model_code
-            .as_deref()
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .ok_or_else(|| {
-                format!(
-                    "Automation agent `{}` requires a system model selection.",
-                    resolved_runtime.agent_code
-                )
-            })?
-            .to_string();
-        let system_agents = agent_management
-            .list_workspace_system_agents(&automation.workspace_code)
-            .map_err(|error| {
-                format!(
-                    "Automation agent `{}` model validation failed for workspace {}: {error:?}",
-                    resolved_runtime.agent_code, automation.workspace_code
-                )
-            })?;
-        let system_agent = system_agents
-            .into_iter()
-            .find(|agent| {
-                agent
-                    .agent_code
-                    .eq_ignore_ascii_case(&resolved_runtime.agent_code)
-            })
-            .ok_or_else(|| {
-                format!(
-                    "Automation agent `{}` is not registered for workspace {}.",
-                    resolved_runtime.agent_code, automation.workspace_code
-                )
-            })?;
-        if !system_agent.enabled || !system_agent.available {
-            return Err(AutomationRunError::Failed(format!(
-                "Automation agent `{}` is disabled or unavailable for workspace {}.",
-                resolved_runtime.agent_code, automation.workspace_code
-            )));
-        }
-        let context_window_tokens = if system_agent.models.is_empty() {
-            None
-        } else {
-            Some(
-                system_agent
-                    .models
-                    .iter()
-                    .find(|model| model.model_id == system_model_id)
-                    .ok_or_else(|| {
-                        format!(
-                            "Automation model `{system_model_id}` is not available for agent `{}`.",
-                            resolved_runtime.agent_code
-                        )
-                    })?
-                    .context_window_tokens,
-            )
-            .flatten()
-        };
-        (
-            build_system_runtime_model_config(&system_model_id, context_window_tokens),
-            None,
-            Some(system_model_id),
-        )
+        // A configured automation uses its explicit system model.
+        resolved_runtime.system_model_id = requested_model.clone();
+        None
     };
+    let run_code = generate_agent_run_code();
+    let request = SendChatMessageCommand {
+        annotations: Vec::new(),
+        requested_skills: Vec::new(),
+        a2ui_action_id: None,
+        a2ui_metadata: None,
+        run_code: Some(run_code.clone()),
+        content: Some(automation.prompt_text.clone()),
+        workspace_code: Some(automation.workspace_code.clone()),
+        app_code: None,
+        task_code: None,
+        agent_code: Some(resolved_runtime.agent_code.clone()),
+        model_selection,
+        model_code: requested_model,
+        system_model_id: resolved_runtime.system_model_id.clone(),
+        reasoning_effort: None,
+        page_context: None,
+        limits: None,
+        tools: Vec::new(),
+        attachments: Vec::new(),
+        client_capabilities: None,
+        resume: Vec::new(),
+    };
+    let prepared = prepare_send_model(
+        &models,
+        &model_providers,
+        &agent_management,
+        &session,
+        &request,
+        &resolved_runtime,
+    )
+    .map_err(|error| {
+        tracing::warn!(?error, "Automation model resolution failed");
+        tron_i18n::t!(
+            "automation.execution.model_resolution_failed",
+            locale = AUTOMATION_LOCALE
+        )
+        .into_owned()
+    })?;
+    let agent = agent.with_auto_model_route(prepared.auto_route, prepared.auto_router);
+    let model = crate::adapters::outbound::model::with_person_ai_conversation(
+        prepared.config,
+        &session.session_code,
+        Some(&run_code),
+    );
     let result = chats
-        .send_message(
+        .send_background_message(
             &session.session_code,
-            SendChatMessageCommand {
-                annotations: Vec::new(),
-                requested_skills: Vec::new(),
-                a2ui_action_id: None,
-                a2ui_metadata: None,
-                run_code: None,
-                content: Some(automation.prompt_text.clone()),
-                workspace_code: Some(automation.workspace_code.clone()),
-                app_code: None,
-                task_code: None,
-                agent_code: Some(resolved_runtime.agent_code.clone()),
-                model_selection: None,
-                model_code,
-                system_model_id,
-                reasoning_effort: None,
-                page_context: None,
-                limits: None,
-                tools: Vec::new(),
-                attachments: Vec::new(),
-                client_capabilities: None,
-                resume: Vec::new(),
-            },
+            request,
             model,
             None,
-            Some(AUTOMATION_LOCALE.to_string()),
-            None,
+            AUTOMATION_LOCALE.to_owned(),
             agent,
+            &presentation,
+            None,
         )
         .await
         .map_err(|error| match error {

@@ -637,8 +637,8 @@ export function TaskDetailsPage() {
     setExecuting(true);
     try {
       const result = dataSource === "api" ? await executeTask(task.taskCode) : executeMockTask(task.taskCode);
-      toast.success(pageT("messages.executionStarted", "Task {{code}} execution started", { code: result.taskCode }), { title: result.runCode });
-      navigate(`/chats?sessionCode=${encodeURIComponent(result.sessionCode)}&sourceTab=task`, { state: { taskExecution: result } });
+      toast.success(pageT("messages.executionSubmitted", "Task {{code}} execution submitted", { code: result.taskCode }), { title: result.runCode });
+      navigate(`/chats?sessionCode=${encodeURIComponent(result.sessionCode)}&sourceTab=task`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("pages:tasks.detail.errors.execution", "Task execution failed"));
     } finally {

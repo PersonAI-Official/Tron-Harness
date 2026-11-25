@@ -292,7 +292,7 @@ pub async fn answer_user_input(
     };
     if request.client_capabilities.is_some() {command.client_capabilities=request.client_capabilities;}
     command.a2ui_metadata=request.a2ui_metadata;
-    stream_message_command(state, auth, session_code, command, false).await
+    stream_message_command(state, auth, session_code, command).await
 }
 
 pub async fn patch_session(

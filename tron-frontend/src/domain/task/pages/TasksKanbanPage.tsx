@@ -585,10 +585,10 @@ export function TasksKanbanPage() {
         : executeMockTask(task.taskCode);
       refresh();
       toast.success(
-        t("pages:tasks.messages.executionStarted", "Task {{code}} execution started", { code: result.taskCode }),
+        t("pages:tasks.messages.executionSubmitted", "Task {{code}} execution submitted", { code: result.taskCode }),
         { title: result.runCode },
       );
-      navigate(`/chats?sessionCode=${encodeURIComponent(result.sessionCode)}&sourceTab=task`, { state: { taskExecution: result } });
+      navigate(`/chats?sessionCode=${encodeURIComponent(result.sessionCode)}&sourceTab=task`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("pages:tasks.detail.errors.execution", "Task execution failed"));
     } finally {

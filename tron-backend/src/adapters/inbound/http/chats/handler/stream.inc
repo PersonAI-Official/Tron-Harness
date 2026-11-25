@@ -145,46 +145,68 @@ pub async fn stream_message(
     Path(session_code): Path<String>,
     Json(request): Json<StreamChatMessageRequest>,
 ) -> Response {
-    let task_execution = request.task_execution;
-    stream_message_command(state, auth, session_code, request.into(), task_execution).await
+    if request.task_execution {
+        return crate::adapters::inbound::http::tasks::task_error_response(
+            crate::domain::task::TaskError::InvalidRequest,
+        );
+    }
+    stream_message_command(state, auth, session_code, request.into()).await
 }
 
-pub(crate) async fn stream_message_command(
-    state: AppState,
+struct StartedChatRun {
+    run_code: String,
+    supports_steer: bool,
+    run_task: tokio::task::JoinHandle<()>,
+    completion_receiver: tokio::sync::mpsc::Receiver<ChatSsePayload>,
+    stream_locale: SupportedLocale,
+}
+
+pub(crate) async fn start_task_chat_run(
+    state: &AppState,
+    auth: RequestAuthContext,
+    session_code: String,
+    request: SendChatMessageCommand,
+) -> Result<(), Response> {
+    start_chat_run(state, auth, session_code, request, true).await?;
+    Ok(())
+}
+
+async fn start_chat_run(
+    state: &AppState,
     auth: RequestAuthContext,
     session_code: String,
     mut request: SendChatMessageCommand,
     task_execution: bool,
-) -> Response {
+) -> Result<StartedChatRun, Response> {
     let stream_locale = SupportedLocale::from_raw(&auth.locale);
     let Ok(session) = state.chats.get_session(&session_code) else {
-        return chat_error_response(ChatError::SessionNotFound);
+        return Err(chat_error_response(ChatError::SessionNotFound));
     };
     if let Err(error) = state.chats.ensure_session_writable(&session_code) {
-        return chat_error_response(error);
+        return Err(chat_error_response(error));
     }
     if let Err(error) = state.chats.ensure_session_directory_available(&session_code) {
-        return chat_error_response(error);
+        return Err(chat_error_response(error));
     }
-    if let Err(response) = ensure_no_active_run(&state, &session_code) {
-        return response;
+    if let Err(response) = ensure_no_active_run(state, &session_code) {
+        return Err(response);
     }
-    if let Err(response) = ensure_native_resume(&state, &session_code, &request.resume).await {
-        return response;
+    if let Err(response) = ensure_native_resume(state, &session_code, &request.resume).await {
+        return Err(response);
     }
-    let resolved_runtime = match resolve_chat_agent_runtime(&state, &session, &request) {
+    let resolved_runtime = match resolve_chat_agent_runtime(state, &session, &request) {
         Ok(runtime) => runtime,
-        Err(error) => return chat_send_error_response(error),
+        Err(error) => return Err(chat_send_error_response(error)),
     };
     let supports_steer = matches!(resolved_runtime.runtime_type, AgentRuntimeType::React);
     if let Err(error) = state.chats.validate_composer_input(&shared::effective_agent_code(&session, &request), request.content.as_deref().unwrap_or_default(), &request.requested_skills) {
-        return chat_error_response(error);
+        return Err(chat_error_response(error));
     }
     let run_code = request.run_code.clone().unwrap_or_else(generate_agent_run_code);
     request.run_code = Some(run_code.clone());
-    let prepared_model = match prepare_send_model(&state, &session, &request, &resolved_runtime) {
+    let prepared_model = match prepare_send_model(state, &session, &request, &resolved_runtime) {
         Ok(model) => model,
-        Err(error) => return chat_send_error_response(error),
+        Err(error) => return Err(chat_send_error_response(error)),
     };
     let auto_model_route = prepared_model.auto_route.clone();
     let auto_model_router = prepared_model.auto_router.clone();
@@ -195,9 +217,9 @@ pub(crate) async fn stream_message_command(
         &session.workspace_code,
         &resolved_model,
     ) {
-        return chat_send_error_response(ChatSendError::Agent(
+        return Err(chat_send_error_response(ChatSendError::Agent(
             crate::application::agent::AgentInvocationError::RuntimeFailed(error.to_string()),
-        ));
+        )));
     }
     let resolved_model = crate::adapters::outbound::model::with_person_ai_conversation(
         resolved_model,
@@ -207,28 +229,30 @@ pub(crate) async fn stream_message_command(
 
     if task_execution {
         let Some(task_code) = session.task_code.as_deref() else {
-            return crate::adapters::inbound::http::tasks::task_error_response(
+            return Err(crate::adapters::inbound::http::tasks::task_error_response(
                 crate::domain::task::TaskError::InvalidRequest,
-            );
+            ));
         };
         if session.source_type != crate::domain::chat::ChatSessionSourceType::Task
             || session.last_run_code.is_some()
             || request.task_code.as_deref() != Some(task_code)
         {
-            return crate::adapters::inbound::http::tasks::task_error_response(
+            return Err(crate::adapters::inbound::http::tasks::task_error_response(
                 crate::domain::task::TaskError::InvalidRequest,
-            );
+            ));
         }
         if let Err(error) = state
             .tasks
             .begin_task_execution(task_code, &session_code, &run_code)
         {
-            return crate::adapters::inbound::http::tasks::task_error_response(error);
+            return Err(crate::adapters::inbound::http::tasks::task_error_response(error));
         }
     }
 
     let agui_stream = state.agent_presentation.clone();
-    let _ = agui_stream.activate(&session_code);
+    if !task_execution {
+        let _ = agui_stream.activate(&session_code);
+    }
 
     let (completion_sender, mut completion_receiver) =
         tokio::sync::mpsc::channel::<ChatSsePayload>(1);
@@ -262,26 +286,41 @@ pub(crate) async fn stream_message_command(
     .with_active_runs(state.active_runs.clone())
     .with_prompt_service(state.prompts.clone())
     .with_auto_model_route(auto_model_route, auto_model_router);
-    let forwarding_gate = ChatStreamForwardingGate::new();
     let sink = Arc::new(|_event: ModelStreamEvent| {});
 
     let llm_runtime = state.llm_runtime.clone();
     let a2ui_action_id = request.a2ui_action_id.clone();
     let a2ui_host = state.agent_framework.clone();
     let assistants = state.assistants.clone();
+    let (admitted, admission) = tokio::sync::oneshot::channel();
     let run_task = AuthHolder::spawn(async move {
-        let result = chats
-            .send_message_stream(
-                &session_code_for_task,
-                request,
-                resolved_model,
-                user_code,
-                Some(auth.locale.clone()),
-                Some(llm_runtime),
-                agent_service,
-                sink,
-            )
-            .await;
+        let result = if task_execution {
+            chats
+                .send_background_message(
+                    &session_code_for_task,
+                    request,
+                    resolved_model,
+                    user_code,
+                    auth.locale.clone(),
+                    agent_service,
+                    &agui_stream,
+                    Some(admitted),
+                )
+                .await
+        } else {
+            chats
+                .send_message_stream(
+                    &session_code_for_task,
+                    request,
+                    resolved_model,
+                    user_code,
+                    Some(auth.locale.clone()),
+                    Some(llm_runtime),
+                    agent_service,
+                    sink,
+                )
+                .await
+        };
         if let Some((task_code, execution_code)) = task_execution_record {
             let completion = match &result {
                 Ok(result) => tasks.finish_task_execution(
@@ -290,11 +329,11 @@ pub(crate) async fn stream_message_command(
                     crate::domain::task::TaskExecutionStatus::Success,
                     Some(result.run.final_output.clone()),
                 ),
-                Err(_) => tasks.finish_task_execution(
+                Err(error) => tasks.finish_task_execution(
                     &task_code,
                     &execution_code,
                     crate::domain::task::TaskExecutionStatus::Failed,
-                    None,
+                    Some(chat_send_error_message(error, stream_locale)),
                 ),
             };
             if let Err(error) = completion {
@@ -316,7 +355,7 @@ pub(crate) async fn stream_message_command(
             },
             Err(error) => {
                 let code = chat_send_error_code(&error).to_string();
-                let message = chat_send_error_message(error, stream_locale);
+                let message = chat_send_error_message(&error, stream_locale);
                 ChatStreamCompletion::Error { code, message }
             }
         };
@@ -337,6 +376,26 @@ pub(crate) async fn stream_message_command(
         let _ = completion_sender.send(done_payload).await;
     });
 
+    if task_execution && admission.await.is_err() {
+        // The run failed before admission. Wait for its history record to be finalized.
+        let _ = completion_receiver.recv().await;
+    }
+    Ok(StartedChatRun { run_code, supports_steer, run_task, completion_receiver, stream_locale })
+}
+
+pub(crate) async fn stream_message_command(
+    state: AppState,
+    auth: RequestAuthContext,
+    session_code: String,
+    request: SendChatMessageCommand,
+) -> Response {
+    let StartedChatRun { run_code, supports_steer, run_task, mut completion_receiver, stream_locale } =
+        match start_chat_run(&state, auth, session_code.clone(), request, false).await {
+            Ok(run) => run,
+            Err(response) => return response,
+        };
+    let agui_stream = state.agent_presentation.clone();
+    let forwarding_gate = ChatStreamForwardingGate::new();
     let stream_key = session_code.clone();
     let stream_run_code = run_code.clone();
     let stream_service = agui_stream.clone();

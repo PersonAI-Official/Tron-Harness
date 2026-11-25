@@ -117,7 +117,6 @@ pub struct TaskExecutionResult {
     pub agent_code: String,
     pub model_code: Option<String>,
     pub summary: String,
-    pub prompt: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]

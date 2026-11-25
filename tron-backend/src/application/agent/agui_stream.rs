@@ -87,6 +87,17 @@ struct ProtocolFrame {
 const MAX_PROTOCOL_BUFFER_BYTES: usize = 8 * 1024 * 1024;
 const MAX_PROTOCOL_BUFFER_FRAMES: usize = 8192;
 
+pub(crate) struct AgentAguiStreamWatch {
+    service: AgentAguiStreamService,
+    stream_key: String,
+}
+
+impl Drop for AgentAguiStreamWatch {
+    fn drop(&mut self) {
+        let _ = self.service.deactivate(&self.stream_key);
+    }
+}
+
 impl AgentAguiStreamService {
     pub fn new(sink: Arc<AguiEventSink>) -> Self {
         Self {
@@ -124,6 +135,14 @@ impl AgentAguiStreamService {
     /// source of truth for cursor catch-up.
     pub fn subscribe(&self) -> broadcast::Receiver<AgentAguiFanoutEvent> {
         self.fanout.subscribe()
+    }
+
+    pub(crate) fn watch(&self, stream_key: &str) -> Option<AgentAguiStreamWatch> {
+        self.activate(stream_key).ok()?;
+        Some(AgentAguiStreamWatch {
+            service: self.clone(),
+            stream_key: stream_key.to_owned(),
+        })
     }
 
     pub fn activate(&self, stream_key: &str) -> Result<AgentAguiStreamState, AgentAguiStreamError> {

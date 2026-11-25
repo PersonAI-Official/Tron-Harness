@@ -18,6 +18,7 @@ impl ChatService {
             llm_runtime,
             agent,
             None,
+            None,
         )
         .await
     }
@@ -42,6 +43,33 @@ impl ChatService {
             llm_runtime,
             agent,
             Some(sink),
+            None,
+        )
+        .await
+    }
+
+    pub(crate) async fn send_background_message(
+        &self,
+        session_code: &str,
+        command: SendChatMessageCommand,
+        resolved_model: AgentModelConfig,
+        user_code: Option<String>,
+        locale: String,
+        agent: AgentInvocationService,
+        presentation: &crate::application::agent::AgentAguiStreamService,
+        admission_signal: Option<tokio::sync::oneshot::Sender<()>>,
+    ) -> Result<ChatSendResult, ChatSendError> {
+        let _watch = presentation.watch(session_code);
+        self.send_message_inner(
+            session_code,
+            command,
+            resolved_model,
+            user_code,
+            Some(locale),
+            None,
+            agent,
+            Some(std::sync::Arc::new(|_| {})),
+            admission_signal,
         )
         .await
     }
@@ -56,6 +84,7 @@ impl ChatService {
         llm_runtime: Option<LlmRuntimeService>,
         agent: AgentInvocationService,
         sink: Option<ModelStreamSink>,
+        admission_signal: Option<tokio::sync::oneshot::Sender<()>>,
     ) -> Result<ChatSendResult, ChatSendError> {
 
         let artifact_actions = command
@@ -230,6 +259,9 @@ impl ChatService {
             transcript_input_kind: None,
             transcript_input_metadata: Some(json!({"annotations": annotations, "requestedSkills": requested_skills, "resume": command.resume, "a2uiClientCapabilities":command.client_capabilities.and_then(|c|c.a2ui),"a2uiMetadata":command.a2ui_metadata,"contextCompaction": context_compaction})),
         };
+        if let Some(signal) = admission_signal {
+            let _ = signal.send(());
+        }
         let mut run = if let Some(sink) = sink {
             agent
                 .invoke_stream_reserved(

@@ -5310,7 +5310,7 @@ export const pages = {
       created: "Task {{code}} created",
       deleted: "Task {{code}} deleted",
       detailsSaved: "Task {{code}} details saved",
-      executionStarted: "Task {{code}} execution started",
+      executionSubmitted: "Task {{code}} execution submitted",
       restored: "Task {{code}} restored",
       subtaskCreated: "Subtask {{code}} created",
       updatesSaved: "Task {{code}} updates saved",

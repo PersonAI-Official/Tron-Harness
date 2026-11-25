@@ -100,9 +100,16 @@ pub async fn read_history(
         Ok(q) => q,
         Err(_) => return history_error(fw::StateError::Invalid("request".into()), locale),
     };
-    if let Err(error) = state.chats.get_session(&session) {
-        return super::error_mapper::chat_error_response(error);
-    }
+    let chat = match state.chats.get_session(&session) {
+        Ok(chat) => chat,
+        Err(error) => return super::error_mapper::chat_error_response(error),
+    };
+    let show_live_messages = query.cursor.is_none()
+        && matches!(
+            chat.source_type,
+            crate::domain::chat::ChatSessionSourceType::Task
+                | crate::domain::chat::ChatSessionSourceType::Automation
+        );
     let result = async {
         let framework = state
             .agent_framework
@@ -124,6 +131,11 @@ pub async fn read_history(
             &state.agent_framework, &session, &history.records.steps,
         ).await?;
         let mut response = ReadHistoryResponse::from(history);
+        if show_live_messages && !response.active_runs.is_empty()
+            && let Ok(events) = state.agent_presentation.protocol_events(&session)
+        {
+            append_live_assistant_messages(&mut response, events);
+        }
         response.artifacts_by_run = state
             .chats
             .artifacts_by_session(&session)
@@ -148,6 +160,102 @@ pub async fn read_history(
         Err(error) => history_error(error, locale),
     }
 }
+// Agent UI polls structured history while an external run is active. Project the
+// still-streaming messages into that view until Framework commits their records.
+fn append_live_assistant_messages(
+    history: &mut ReadHistoryResponse,
+    events: Vec<crate::domain::agent::AgentAguiProtocolEvent>,
+) {
+    use std::collections::{HashMap, HashSet};
+
+    let active_runs: HashMap<_, _> = history
+        .active_runs
+        .iter()
+        .map(|run| (run.id.to_string(), run))
+        .collect();
+    let persisted: HashSet<_> = history
+        .records
+        .messages
+        .iter()
+        .map(|message| message.id.as_str())
+        .collect();
+    let mut pending = HashMap::new();
+    for event in events {
+        let data = event.data;
+        let Some(id) = data.get("messageId").and_then(serde_json::Value::as_str) else {
+            continue;
+        };
+        match event.sse_event.as_str() {
+            "TEXT_MESSAGE_START"
+                if data.get("role").and_then(serde_json::Value::as_str) == Some("assistant")
+                    && !persisted.contains(id) =>
+            {
+                let native_run = data
+                    .pointer("/metadata/framework/runId")
+                    .and_then(serde_json::Value::as_str);
+                let Some(run) = native_run.and_then(|id| active_runs.get(id)) else {
+                    continue;
+                };
+                pending.entry(id.to_owned()).or_insert_with(|| {
+                    let metadata = data.pointer("/metadata/framework/message");
+                    fw::HistoryMessage {
+                        id: id.to_owned(),
+                        run_id: run.id,
+                        created_at_ms: data
+                            .get("timestamp")
+                            .and_then(serde_json::Value::as_u64)
+                            .unwrap_or(run.started_at_ms),
+                        role: fw::Role::Assistant,
+                        content: vec![fw::HistoryContentBlock::Text {
+                            text: String::new(),
+                        }],
+                        status: fw::HistoryStatus::Running,
+                        annotations: Vec::new(),
+                        requested_skills: Vec::new(),
+                        provenance: None,
+                        step_id: metadata
+                            .and_then(|message| message.get("stepId"))
+                            .and_then(serde_json::Value::as_str)
+                            .map(str::to_owned),
+                        phase: metadata
+                            .and_then(|message| message.get("phase"))
+                            .and_then(serde_json::Value::as_str)
+                            .map(str::to_owned),
+                        output_index: metadata
+                            .and_then(|message| message.get("outputIndex"))
+                            .and_then(serde_json::Value::as_u64)
+                            .and_then(|index| usize::try_from(index).ok()),
+                        structured: None,
+                    }
+                });
+            }
+            "TEXT_MESSAGE_CONTENT" => {
+                if let Some(message) = pending.get_mut(id)
+                    && let Some(fw::HistoryContentBlock::Text { text }) =
+                        message.content.first_mut()
+                    && let Some(delta) = data.get("delta").and_then(serde_json::Value::as_str)
+                {
+                    text.push_str(delta);
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut live_messages: Vec<_> = pending
+        .into_values()
+        .filter(|message| {
+            matches!(message.content.first(),
+            Some(fw::HistoryContentBlock::Text { text }) if !text.is_empty())
+        })
+        .collect();
+    live_messages.sort_by(|left, right| {
+        left.created_at_ms
+            .cmp(&right.created_at_ms)
+            .then_with(|| left.id.cmp(&right.id))
+    });
+    history.records.messages.extend(live_messages);
+}
+
 fn history_error(error: fw::StateError, locale: SupportedLocale) -> Response {
     let descriptor = crate::application::chat::history_error::descriptor(&error);
     let (status, message) = match descriptor.message_key {

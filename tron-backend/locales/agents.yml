@@ -302,9 +302,13 @@ tasks.session_title:
   en: "Task: %{title}"
   zh-CN: "任务：%{title}"
 
-tasks.execution_started:
-  en: "Task execution started."
-  zh-CN: "任务执行已开始。"
+tasks.execution_submitted:
+  en: "Task execution submitted."
+  zh-CN: "任务执行已提交。"
+
+automation.execution.model_resolution_failed:
+  en: "The model configured for this automation could not be resolved."
+  zh-CN: "无法解析此自动化配置的模型。"
 
 # --- Skills ---
 tron.skill.searchqueryrequired:

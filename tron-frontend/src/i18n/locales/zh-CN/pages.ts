@@ -5129,7 +5129,7 @@ export const pages = {
       created: "任务 {{code}} 已创建",
       deleted: "任务 {{code}} 已删除",
       detailsSaved: "任务 {{code}} 详情已保存",
-      executionStarted: "任务 {{code}} 执行已启动",
+      executionSubmitted: "任务 {{code}} 执行已提交",
       restored: "任务 {{code}} 已恢复",
       subtaskCreated: "子任务 {{code}} 已创建",
       updatesSaved: "任务 {{code}} 更新已保存",

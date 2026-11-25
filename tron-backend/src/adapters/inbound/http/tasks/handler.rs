@@ -10,13 +10,16 @@ use axum::{
 use serde_json::Value;
 
 use crate::{
-    adapters::inbound::http::auth::RequestAuthContext,
+    adapters::inbound::http::{auth::RequestAuthContext, chats::handler::start_task_chat_run},
     app::AppState,
     application::{
-        agent::generate_agent_run_code, chat::CreateChatSessionCommand, task::TaskService,
+        agent::generate_agent_run_code,
+        chat::{CreateChatSessionCommand, SendChatMessageCommand},
+        task::TaskService,
     },
     domain::{
-        chat::ChatSessionSourceType,
+        chat::{ChatClientCapabilities, ChatSessionSourceType},
+        model_provider::ModelSelection,
         prompt::PromptRuntimeProvider,
         task::{TaskError, TaskExecutionResult, TaskFlowDraft, TaskListQuery},
     },
@@ -240,18 +243,54 @@ pub async fn execute_task(
         }
     };
 
-    // Recheck after creating the session, synchronized with task deletion.
-    if let Err(error) = state.tasks.confirm_task_session_owner(&task.task_code) {
-        if let Err(cleanup_error) = state.chats.delete_session(&session.session_code)
-            && !matches!(cleanup_error, crate::domain::chat::ChatError::SessionNotFound)
-        {
-            tracing::warn!(%cleanup_error, session_code = %session.session_code, "Task session cleanup failed");
-        }
-        return task_error_response(error);
-    }
-
+    let locale = auth.locale.clone();
     let run_code = generate_agent_run_code();
     let session_code = session.session_code.clone();
+    let model_selection = task
+        .model_code
+        .as_deref()
+        .is_none_or(|code| code.trim().is_empty() || code == "PERSON_AI:ROUTE:ChatAuto")
+        .then(ModelSelection::auto);
+    let request = SendChatMessageCommand {
+        annotations: Vec::new(),
+        requested_skills: Vec::new(),
+        a2ui_action_id: None,
+        a2ui_metadata: None,
+        run_code: Some(run_code.clone()),
+        content: Some(prompt),
+        workspace_code: task.workspace_code.clone(),
+        app_code: None,
+        task_code: Some(task.task_code.clone()),
+        agent_code: Some(task.agent_code.clone()),
+        model_selection,
+        model_code: task.model_code.clone(),
+        system_model_id: task.model_code.clone(),
+        reasoning_effort: None,
+        page_context: None,
+        limits: None,
+        tools: Vec::new(),
+        attachments: Vec::new(),
+        client_capabilities: Some(ChatClientCapabilities {
+            user_input_requests: true,
+            ..Default::default()
+        }),
+        resume: Vec::new(),
+    };
+    let started = match state.tasks.confirm_task_session_owner(&task.task_code) {
+        Ok(()) => start_task_chat_run(&state, auth, session_code.clone(), request).await,
+        Err(error) => Err(task_error_response(error)),
+    };
+    if let Err(response) = started {
+        if let Err(cleanup_error) = state.chats.delete_session(&session_code)
+            && !matches!(
+                cleanup_error,
+                crate::domain::chat::ChatError::SessionNotFound
+            )
+        {
+            tracing::warn!(%cleanup_error, %session_code, "Task session cleanup failed");
+        }
+        return response;
+    }
 
     Json(ApiResponse::success(TaskExecutionResult {
         task_code: task.task_code,
@@ -261,8 +300,7 @@ pub async fn execute_task(
             .agent_code
             .unwrap_or_else(|| "main-agent".to_string()),
         model_code: task.model_code,
-        summary: tron_i18n::t!("tasks.execution_started", locale = &auth.locale).into_owned(),
-        prompt,
+        summary: tron_i18n::t!("tasks.execution_submitted", locale = &locale).into_owned(),
     }))
     .into_response()
 }

@@ -669,6 +669,7 @@ impl AppState {
             agent_framework.clone(),
             automations.clone(),
             chats.clone(),
+            agent_presentation.clone(),
             agent_management.clone(),
             models.clone(),
             model_providers.clone(),

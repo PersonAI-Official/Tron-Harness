@@ -23,7 +23,7 @@ import { useTabVisibility } from "@/components/editable-tabs";
 import { AgentTerminalSessionContext } from "../terminal/AgentTerminalToolCard";
 import { SessionApplicationsPanel } from "@/domain/chat/components/SessionApplicationsPanel";
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
-import { useLocation, useNavigate, useSearchParams } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 
 import { Badge } from "@/components/ui/badge";
 import { InfoTooltip } from "@/components/info-tooltip";
@@ -80,7 +80,6 @@ import { ChatExecutionModeSelector } from "../components/ChatExecutionModeSelect
 import { ChatPlanReviewCard } from "../components/ChatPlanReviewCard";
 import { ChatModelEffortSelector } from "../components/ChatModelEffortSelector";
 import { useChatExecutionMode } from "../hooks/useChatExecutionMode";
-import type { TaskExecutionResult } from "@/domain/task/model";
 import { useCreateChatTab } from "@/shared/layout/chat/hooks/useCreateChatTab";
 import { ContextDetailPreview, contextDetailRawValue, type ContextDetailBlock } from "@/domain/chat/components/ContextDetailPreview";
 import { useSavedContextAssembly } from "../hooks/useSavedContextAssembly";
@@ -2393,22 +2392,8 @@ function ChatAgentSelector({
 export function ChatManagementPage() {
   const scopeTabId = useTabPanelScopeId();
   const tabVisible = useTabVisibility();
-  const location = useLocation();
-  const [taskExecutionLaunch, setTaskExecutionLaunch] = useState<TaskExecutionResult | null>(() => {
-    const state = location.state as { taskExecution?: TaskExecutionResult } | null;
-    return state?.taskExecution ?? null;
-  });
-  useEffect(() => {
-    const state = location.state as { taskExecution?: TaskExecutionResult } | null;
-    const launch = state?.taskExecution;
-    if (launch?.prompt && launch.sessionCode && launch.runCode) {
-      setTaskExecutionLaunch((current) => current?.runCode === launch.runCode ? current : launch);
-    }
-  }, [location.state]);
   const [initialChatMessage] = useState(() => useTabStore.getState().tabs.find((tab) => tab.id === scopeTabId)?.initialChatMessage);
   const initialMessageSubmitted = useRef(false);
-  const taskExecutionSubmittedRef = useRef("");
-  const taskExecutionDispatchRef = useRef("");
   const contextPanelOpen = useTabStore((state) => state.tabs.find((tab) => tab.id === scopeTabId)?.rightPanelOpen ?? false);
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -2736,32 +2721,19 @@ export function ChatManagementPage() {
     content: string,
     attachments: ChatMessageAttachment[],
   ): SendChatMessageInput | null {
-    const taskLaunch = taskExecutionDispatchRef.current === session.sessionCode
-      && taskExecutionLaunch?.sessionCode === session.sessionCode
-      ? taskExecutionLaunch
-      : null;
-    if (taskLaunch) taskExecutionDispatchRef.current = "";
-    if (savingExecutionMode || (!taskLaunch && (!selectedModel || !selectedModel.enabled))) return null;
+    if (savingExecutionMode || !selectedModel || !selectedModel.enabled) return null;
     const input: SendChatMessageInput = {
-      agentCode: taskLaunch?.agentCode ?? effectiveAgentCode,
+      agentCode: effectiveAgentCode,
       appCode: session.appCode,
       clientCapabilities: { userInputRequests: true },
       content,
-      taskCode: taskLaunch?.taskCode ?? session.taskCode,
+      taskCode: session.taskCode,
       workspaceCode: session.workspaceCode,
     };
-    if (taskLaunch) {
-      input.runCode = taskLaunch.runCode;
-      input.taskExecution = true;
-      if (taskLaunch.modelCode) {
-        input.modelCode = taskLaunch.modelCode;
-        input.systemModelId = taskLaunch.modelCode;
-      }
-    }
     if (attachments.length) input.attachments = attachments;
-    if (!taskLaunch?.modelCode && selectedModel?.source === "system-agent") {
+    if (selectedModel.source === "system-agent") {
       input.systemModelId = selectedModel.modelName;
-    } else if (!taskLaunch?.modelCode && selectedModel) {
+    } else {
       // The selector always sends the complete selection. In particular Auto
       // intentionally does not include a physical modelCode.
       input.modelSelection = selectedModel.modelSelection;
@@ -2796,7 +2768,7 @@ export function ChatManagementPage() {
     (session: RuntimeChatSession, content: string, attachments: ChatMessageAttachment[]) => (
       createSendInput(toPageChatSession(session), content, attachments)
     ),
-    [effectiveAgentCode, selectedModel, selectedReasoningEffort, savingExecutionMode, taskExecutionLaunch],
+    [effectiveAgentCode, selectedModel, selectedReasoningEffort, savingExecutionMode],
   );
 
   useEffect(() => {
@@ -2819,31 +2791,6 @@ export function ChatManagementPage() {
       toast.error(error instanceof Error ? error.message : String(error));
     });
   }, [initialChatMessage, isDraft, tabVisible, composer, selectedModel, savingExecutionMode, creatingSession, scopeTabId, setComposer, toast]);
-
-  useEffect(() => {
-    const launch = taskExecutionLaunch;
-    if (!launch?.prompt || activeSession?.sessionCode !== launch.sessionCode || !tabVisible
-      || creatingSession || savingExecutionMode || !submitterRef.current
-      || taskExecutionSubmittedRef.current === launch.runCode) return;
-
-    // A task launch is submitted through Agent UI's normal stream adapter so
-    // assistant text and AG-UI work events appear in the task session live.
-    taskExecutionSubmittedRef.current = launch.runCode;
-    taskExecutionDispatchRef.current = launch.sessionCode;
-    navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
-    const restoreDraft = () => setComposer((current) => current || launch.prompt!);
-    void submitterRef.current.submit({ content: launch.prompt }).then((accepted) => {
-      if (!accepted) {
-        taskExecutionDispatchRef.current = "";
-        restoreDraft();
-        toast.error(t("chat.management.toasts.chatSendFailedTitle"));
-      }
-    }).catch((error: unknown) => {
-      taskExecutionDispatchRef.current = "";
-      restoreDraft();
-      toast.error(error instanceof Error ? error.message : String(error));
-    });
-  }, [activeSession?.sessionCode, creatingSession, location.pathname, location.search, navigate, savingExecutionMode, setComposer, tabVisible, taskExecutionLaunch, toast, t]);
 
   const handleRuntimeSessionChange = useCallback((nextSession: RuntimeChatSession | null) => {
     if (!nextSession) return;
@@ -3626,8 +3573,7 @@ export function ChatManagementPage() {
             onPlanCommand={runPlanCommand}
             config={{
               agentCode: effectiveAgentCode,
-              disabledInput: creatingSession || savingExecutionMode
-                || (!selectedModel?.enabled && taskExecutionLaunch?.sessionCode !== activeSession?.sessionCode),
+              disabledInput: creatingSession || savingExecutionMode || !selectedModel?.enabled,
               floating: false,
               inputPlaceholder: t("chat.management.composer.inputPlaceholder"),
               showAgui: true,

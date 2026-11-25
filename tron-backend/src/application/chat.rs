@@ -6,6 +6,7 @@ pub(crate) mod composer_input;
 mod dto;
 mod goal_loop;
 pub(crate) mod history_error;
+pub(crate) mod model_resolution;
 mod port;
 mod run_control;
 mod service;
