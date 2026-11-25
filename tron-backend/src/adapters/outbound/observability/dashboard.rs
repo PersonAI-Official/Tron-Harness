@@ -83,7 +83,7 @@ fn service_processes() -> Vec<ServiceProcess> {
     system.refresh_processes_specifics(
         ProcessesToUpdate::All,
         true,
-        ProcessRefreshKind::nothing().with_memory(),
+        ProcessRefreshKind::nothing().with_memory().without_tasks(),
     );
     let root = sysinfo::Pid::from_u32(std::process::id());
     let mut owned = BTreeSet::from([root]);
