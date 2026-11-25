@@ -41,12 +41,20 @@ pub struct ReadinessData {
     responses((status = 200, description = "Service is healthy", body = ApiResponse<HealthData>)),
     tag = "System"
 )]
-pub async fn health(State(_config): State<AppConfig>) -> Json<ApiResponse<HealthData>> {
-    Json(ApiResponse::success(HealthData {
+pub async fn health(State(_config): State<AppConfig>) -> Response {
+    let mut response = Json(ApiResponse::success(HealthData {
         status: "ok",
         service: "tron-backend",
         version: env!("CARGO_PKG_VERSION"),
     }))
+    .into_response();
+    let optimizing =
+        crate::adapters::outbound::persistence::sqlite::framework_storage::is_optimizing();
+    response.headers_mut().insert(
+        "x-tron-storage-optimizing",
+        axum::http::HeaderValue::from_static(if optimizing { "1" } else { "0" }),
+    );
+    response
 }
 
 #[utoipa::path(

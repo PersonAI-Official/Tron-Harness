@@ -77,7 +77,6 @@ rustls-pemfile = "2"
 webpki-roots = "1"
 redis = { version = "0.32.7", default-features = false, features = ["cluster-async", "tokio-rustls-comp"] }
 rusqlite = { version = "0.37", features = ["bundled", "load_extension", "functions"] }
-# SQLite 空间治理：存量库 VACUUM 前探测磁盘余量
 fs2 = "0.4"
 tokio-rusqlite = { version = "0.7.0", features = ["bundled"] }
 russh = { version = "0.62.6", default-features = false, features = ["ring", "rsa"] }

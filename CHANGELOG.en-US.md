@@ -22,6 +22,10 @@ Remote images require a network connection and are not bundled with the text. --
 
 ## [1.1.0] - 2026-11-24
 
+### Desktop startup
+
+- Convert existing SQLite databases to incremental reclamation 10 minutes after the service starts. The desktop app shows a full-screen notice during conversion.
+
 ### Agents & Chat
 
 - Introduced Plan Mode and deliverable file previews, and improved the visualization of chat context budgets, memory usage, and short-term memory.

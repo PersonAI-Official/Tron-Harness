@@ -2,6 +2,7 @@
 //! Entire consistency operations run in one future so transaction binding is retained.
 use std::collections::BTreeMap;
 use std::future::Future;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, Weak};
 
 use eliteforge_agent_official_plugin_storage_local::SqliteDatabase;
@@ -59,6 +60,12 @@ pub(crate) struct SharedDatabase(Arc<SqliteDatabase>);
 /// 进程内已打开数据库的弱引用登记表：供周期性空闲页回收遍历
 type DatabaseRegistry = Mutex<BTreeMap<String, Weak<SqliteDatabase>>>;
 
+static OPTIMIZING: AtomicBool = AtomicBool::new(false);
+
+pub(crate) fn is_optimizing() -> bool {
+    OPTIMIZING.load(Ordering::Relaxed)
+}
+
 fn database_registry() -> &'static DatabaseRegistry {
     static DATABASES: OnceLock<DatabaseRegistry> = OnceLock::new();
     DATABASES.get_or_init(Default::default)
@@ -105,16 +112,6 @@ impl SharedDatabase {
             |c| super::schema::initialize_business(c),
             || rusqlite::Error::InvalidQuery,
         )?;
-        // SQLite 空间治理：新库在建表前已由 configure_space 打开增量回收；
-        // 存量库在此一次性转换（设置 + VACUUM 必须在同一个写连接上完成）。
-        // 失败（磁盘余量不足 / 被占用）只告警，不阻断打开，下次启动重试。
-        let space_path = key.clone();
-        if let Err(error) = shared.call(
-            move |c| configure_space(c, &space_path),
-            || rusqlite::Error::InvalidQuery,
-        ) {
-            tracing::warn!(%error, "SQLite 空间回收转换失败（下次启动重试）");
-        }
         databases.insert(key, Arc::downgrade(&database));
         Ok(shared)
     }
@@ -211,40 +208,6 @@ impl SharedDatabase {
     }
 }
 
-/// 空间治理：开增量回收 + 存量库一次性转换（PRAGMA 与 VACUUM 必须同一连接）
-fn configure_space(connection: &mut rusqlite::Connection, path: &str) -> rusqlite::Result<()> {
-    connection.execute_batch("PRAGMA auto_vacuum = INCREMENTAL")?;
-    let mode: i64 = connection.query_row("PRAGMA auto_vacuum", [], |row| row.get(0))?;
-    // 已是 INCREMENTAL（新库建表前即生效）或处于事务中时无事可做
-    if mode == 2 || !connection.is_autocommit() {
-        return Ok(());
-    }
-    // 存量库转换要整库重写：磁盘至少留 2 倍库文件 + 8 MiB，否则跳过等下次启动
-    let file = std::path::Path::new(path);
-    let file_bytes = std::fs::metadata(file).map(|meta| meta.len()).unwrap_or(0);
-    if file_bytes > 0 {
-        if let Some(dir) = file.parent() {
-            if let Ok(available) = fs2::available_space(dir) {
-                let needed = file_bytes.saturating_mul(2).saturating_add(8 * 1024 * 1024);
-                if available < needed {
-                    tracing::warn!(
-                        available_mb = available / 1024 / 1024,
-                        needed_mb = needed / 1024 / 1024,
-                        "磁盘余量不足，暂不转换 SQLite auto_vacuum（下次启动重试）"
-                    );
-                    return Ok(());
-                }
-            }
-        }
-    }
-    connection.execute_batch("VACUUM")?;
-    let after: i64 = connection.query_row("PRAGMA auto_vacuum", [], |row| row.get(0))?;
-    if after == 2 {
-        tracing::info!("SQLite auto_vacuum=INCREMENTAL 转换完成");
-    }
-    Ok(())
-}
-
 /// 增量回收空闲页；注意 incremental_vacuum 每回收一页返回一行，必须 step 到底
 fn reclaim_free_pages_on(
     connection: &mut rusqlite::Connection,
@@ -279,10 +242,58 @@ pub(crate) fn reclaim_all_databases(max_pages: u64) {
         registry.values().filter_map(Weak::upgrade).collect()
     };
     for database in databases {
-        if let Err(error) = SharedDatabase(database).reclaim_free_pages(max_pages) {
+        let shared = SharedDatabase(database);
+        if let Err(error) = shared.call(enable_incremental_reclamation, || {
+            rusqlite::Error::InvalidQuery
+        }) {
+            tracing::warn!(%error, "SQLite auto-vacuum conversion deferred");
+            continue;
+        }
+        if let Err(error) = shared.reclaim_free_pages(max_pages) {
             tracing::warn!(%error, "SQLite 空闲页回收失败");
         }
     }
+}
+
+fn enable_incremental_reclamation(connection: &mut rusqlite::Connection) -> rusqlite::Result<()> {
+    let mode: i64 = connection.query_row("PRAGMA auto_vacuum", [], |row| row.get(0))?;
+    if mode == 2 {
+        return Ok(());
+    }
+    if mode == 1 {
+        return connection.pragma_update(None, "auto_vacuum", "INCREMENTAL");
+    }
+
+    let file = std::path::Path::new(connection.path().ok_or(rusqlite::Error::InvalidQuery)?);
+    let parent = file.parent().ok_or(rusqlite::Error::InvalidQuery)?;
+    let file_bytes = std::fs::metadata(file)
+        .map_err(|_| rusqlite::Error::InvalidPath(file.into()))?
+        .len();
+    let available =
+        fs2::available_space(parent).map_err(|_| rusqlite::Error::InvalidPath(parent.into()))?;
+    if available < file_bytes.saturating_mul(2).saturating_add(8 * 1024 * 1024) {
+        tracing::warn!(
+            file_bytes,
+            available,
+            "Insufficient space for SQLite auto-vacuum conversion"
+        );
+        return Ok(());
+    }
+
+    struct OptimizationGuard;
+    impl Drop for OptimizationGuard {
+        fn drop(&mut self) {
+            OPTIMIZING.store(false, Ordering::Relaxed);
+        }
+    }
+
+    OPTIMIZING.store(true, Ordering::Relaxed);
+    let _guard = OptimizationGuard;
+    tracing::info!(file_bytes, "Starting SQLite auto-vacuum conversion");
+    connection.pragma_update(None, "auto_vacuum", "INCREMENTAL")?;
+    connection.execute_batch("VACUUM")?;
+    tracing::info!("SQLite auto-vacuum conversion completed");
+    Ok(())
 }
 
 /// A business transaction joins the host transaction on the worker connection.

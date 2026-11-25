@@ -50,6 +50,7 @@ const { createApplicationLogger } = require("./application-log.cjs");
 const { createUpdater, UPDATE_STATUS_EVENT } = require("./updater.cjs");
 
 const {
+  BACKEND_HEALTH_PATH,
   HOST,
   resolveBackendHost,
   checkTargetPageEmbeddingStatus,
@@ -324,7 +325,79 @@ function createMainWindow() {
     }
   });
 
+  watchStorageOptimization(window);
   return window;
+}
+
+function watchStorageOptimization(window) {
+  let overlay = null;
+  let restoreWindowedMode = false;
+  let timer;
+  const resize = () => {
+    const [width, height] = window.getContentSize();
+    overlay?.setBounds({ x: 0, y: 0, width, height });
+  };
+  const dismiss = () => {
+    if (!overlay) return;
+    if (!window.isDestroyed()) {
+      window.contentView.removeChildView(overlay);
+      if (restoreWindowedMode) window.setFullScreen(false);
+      if (window.isFocused()) window.webContents.focus();
+    }
+    overlay.webContents.close();
+    overlay = null;
+    restoreWindowedMode = false;
+  };
+  const show = async () => {
+    const zh = app.getLocale().startsWith("zh");
+    const title = zh ? "正在优化本地数据" : "Optimizing local data";
+    const theme = startupTheme(readStartupColorMode(app), nativeTheme);
+    const { background, foreground } = startupPalette(theme);
+    overlay = new WebContentsView({ webPreferences: { sandbox: true } });
+    overlay.setBackgroundColor(background);
+    window.contentView.addChildView(overlay);
+    resize();
+    restoreWindowedMode = window.isVisible() && !window.isFullScreen();
+    if (restoreWindowedMode) window.setFullScreen(true);
+    const html = `<!doctype html><html lang="${zh ? "zh-CN" : "en"}"><meta charset="utf-8"><title>${title}</title>
+      <body style="margin:0;min-height:100vh;display:grid;place-items:center;background:${background};color:${foreground};font:500 24px system-ui">
+      <main role="status">${title}</main></body></html>`;
+    try {
+      await overlay.webContents.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+      if (!window.isDestroyed() && window.isFocused()) overlay?.webContents.focus();
+    } catch {
+      dismiss();
+    }
+  };
+  const poll = async () => {
+    if (window.isDestroyed() || isQuitting) return;
+    try {
+      if (state.backendReady) {
+        const response = await net.fetch(`${state.backendUrl}${BACKEND_HEALTH_PATH}`, {
+          cache: "no-store",
+          signal: AbortSignal.timeout(2000)
+        });
+        const optimizing = response.headers.get("x-tron-storage-optimizing") === "1";
+        await response.body?.cancel();
+        if (response.ok && !window.isDestroyed() && !isQuitting) {
+          if (optimizing && !overlay) await show();
+          else if (!optimizing) dismiss();
+        }
+      } else {
+        dismiss();
+      }
+    } catch {
+      // A failed request does not tell us whether conversion has finished.
+    } finally {
+      if (!window.isDestroyed() && !isQuitting) timer = setTimeout(poll, 1000);
+    }
+  };
+  window.on("resize", resize);
+  window.once("closed", () => {
+    clearTimeout(timer);
+    dismiss();
+  });
+  timer = setTimeout(poll, 1000);
 }
 
 async function showStartupMessage(message, { failed = false } = {}) {

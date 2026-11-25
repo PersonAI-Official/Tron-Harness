@@ -22,6 +22,6 @@
 
 ## SQLite 空间回收（改动持久化前必读）
 
-- 业务库统一经 `framework_storage::SharedDatabase::open` 打开：设置 `auto_vacuum=INCREMENTAL`，存量库在同一个写连接上 `VACUUM` 完成一次性转换（磁盘余量不足则跳过，下次启动重试）。
-- `app.rs` 启动后每 10 分钟调用 `reclaim_all_databases(1024)`，遍历进程内仍存活的数据库各回收一轮。
+- 业务库统一经 `framework_storage::SharedDatabase::open` 打开，新库在建表前启用 `auto_vacuum=INCREMENTAL`。旧库在后台巡检中使用同一个写连接设置模式并执行一次性 `VACUUM`，磁盘余量不足或转换失败时留待下轮。
+- HTTP 服务启动后延迟 10 分钟开始巡检，每轮结束后等待 10 分钟。已启用增量回收的业务库每轮最多回收 1024 页。
 - 若新增 SQLite 文件绕过 `SharedDatabase`（直接 `rusqlite::Connection::open`），需自行补同样的 PRAGMA 与回收，否则文件只增不减。

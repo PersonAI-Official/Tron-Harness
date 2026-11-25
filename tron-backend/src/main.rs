@@ -98,6 +98,7 @@ async fn run_server() -> Result<(), Box<dyn Error>> {
     }
 
     tracing::info!("tron-backend listening on http://{socket_addr}");
+    let sqlite_maintenance = tokio::spawn(tron_backend::app::maintain_sqlite_databases());
     tokio::select! {
         // Finalize routes once; serving Router directly runs with_state(())
         // and clones every route's middleware state for each new connection.
@@ -106,6 +107,7 @@ async fn run_server() -> Result<(), Box<dyn Error>> {
             Ok(())
         }
         _ = shutdown_signal() => {
+            sqlite_maintenance.abort();
             // A process exit must not depend on HTTP draining, a stuck callback,
             // or Tokio's blocking-pool teardown. The OS releases file locks on exit.
             std::thread::spawn(|| {
