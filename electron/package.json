@@ -73,6 +73,7 @@
       ],
       "syncDesktopName": true,
       "icon": "assets/tron.png",
+      "artifactName": "Tron-${version}-${arch}.${ext}",
       "category": "Utility",
       "maintainer": "Tron contributors"
     },
