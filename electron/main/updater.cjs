@@ -175,6 +175,18 @@ function describeError(error) {
   return String(error || "unknown error");
 }
 
+function describeErrorDetails(error) {
+  if (!(error instanceof Error)) return describeError(error);
+  const details = [error.name, error.message];
+  for (const key of ["code", "errno", "syscall", "path"]) {
+    if (error[key] !== undefined && error[key] !== null && error[key] !== "") {
+      details.push(`${key}=${error[key]}`);
+    }
+  }
+  if (error.stack) details.push(`stack=${error.stack.replace(/[\r\n]+/g, " | ")}`);
+  return details.join("; ");
+}
+
 function cloneStatus(status) {
   return { ...status };
 }
@@ -196,18 +208,35 @@ async function writeLog(logPath, message) {
   }
 }
 
-async function waitForLauncherExit(input = process.stdin, parentPid) {
+async function waitForLauncherExit(input = process.stdin, parentPid, onProgress = null) {
   if (parentPid !== undefined) {
     if (!Number.isSafeInteger(parentPid) || parentPid <= 0 || parentPid === process.pid) throw new Error("invalid update launcher PID");
+    const startedAt = Date.now();
     const deadline = Date.now() + 120000;
+    let nextProgressAt = startedAt + 10000;
+    await onProgress?.(`waiting for launcher process ${parentPid} to exit`);
     while (true) {
       try { process.kill(parentPid, 0); }
-      catch (error) { if (error.code === "ESRCH") return; throw error; }
-      if (Date.now() >= deadline) throw new Error("timed out waiting for the update launcher to exit");
+      catch (error) {
+        if (error.code === "ESRCH") {
+          await onProgress?.(`launcher process ${parentPid} exited after ${Date.now() - startedAt}ms`);
+          return;
+        }
+        throw error;
+      }
+      if (Date.now() >= deadline) {
+        await onProgress?.(`launcher process ${parentPid} remained active for ${Date.now() - startedAt}ms; giving up`);
+        throw new Error("timed out waiting for the update launcher to exit");
+      }
+      if (Date.now() >= nextProgressAt) {
+        await onProgress?.(`launcher process ${parentPid} is still active after ${Date.now() - startedAt}ms`);
+        nextProgressAt += 10000;
+      }
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
   }
   if (!input || typeof input.once !== "function" || input.readableEnded || input.destroyed) return;
+  await onProgress?.("waiting for update launcher input stream to close");
   await new Promise((resolve) => {
     const done = () => {
       input.removeListener("end", done);
@@ -218,6 +247,7 @@ async function waitForLauncherExit(input = process.stdin, parentPid) {
     input.once("close", done);
     if (typeof input.resume === "function") input.resume();
   });
+  await onProgress?.("update launcher input stream closed");
 }
 
 function waitForSpawn(child) {
@@ -241,7 +271,7 @@ function waitForChildExit(child) {
     };
     const closed = (code, signal) => {
       cleanup();
-      if (code === 0) resolve();
+      if (code === 0) resolve({ code, signal });
       else reject(new Error(`update installer exited with code ${code}${signal ? ` (${signal})` : ""}`));
     };
     const failed = (error) => { cleanup(); reject(error); };
@@ -310,9 +340,10 @@ async function runApplyUpdate(installerPath, options = {}) {
   }
 
   try {
-    await writeLog(logPath, `update helper started: ${filePath}`);
+    await writeLog(logPath, `update helper started: pid=${process.pid}; launcherPid=${options.parentPid ?? "none"}; installer=${filePath}`);
     options.onReady?.();
-    await waitForLauncherExit(input, options.parentPid);
+    await writeLog(logPath, "update helper reported ready to launcher");
+    await waitForLauncherExit(input, options.parentPid, (message) => writeLog(logPath, `update helper: ${message}`));
 
     if (platformName !== "win32") {
       await writeLog(logPath, `update helper does not support platform ${platformName}`);
@@ -325,6 +356,7 @@ async function runApplyUpdate(installerPath, options = {}) {
       // NSIS consumes everything after /D= as the directory; keep it last.
       args.push(`/D=${options.installDir}`);
     }
+    await writeLog(logPath, `update helper starting NSIS installer: ${filePath}; args=${JSON.stringify(args)}; cwd=${os.tmpdir()}`);
     const child = spawnImpl(filePath, args, {
       detached: false,
       stdio: "ignore",
@@ -333,9 +365,12 @@ async function runApplyUpdate(installerPath, options = {}) {
     });
     const installerExit = waitForChildExit(child);
     await waitForSpawn(child);
-    await installerExit;
+    await writeLog(logPath, `update helper spawned NSIS installer: pid=${child.pid ?? "unknown"}`);
+    const installerResult = await installerExit;
+    await writeLog(logPath, `update helper NSIS installer exited successfully: code=${installerResult.code}; signal=${installerResult.signal ?? "none"}`);
     const executablePath = path.join(options.installDir || "", "Tron.exe");
     if (!options.installDir || !path.win32.isAbsolute(options.installDir)) throw new Error("invalid update installation directory");
+    await writeLog(logPath, `update helper launching updated app: ${executablePath}`);
     const app = spawnImpl(executablePath, ["--updated"], {
       detached: true,
       stdio: "ignore",
@@ -344,10 +379,10 @@ async function runApplyUpdate(installerPath, options = {}) {
     });
     await waitForSpawn(app);
     app.unref?.();
-    await writeLog(logPath, `update helper installed and launched app: ${executablePath}`);
+    await writeLog(logPath, `update helper installed and launched app: pid=${app.pid ?? "unknown"}; executable=${executablePath}`);
     return 0;
   } catch (error) {
-    await writeLog(logPath, `update helper failed: ${describeError(error)}`);
+    await writeLog(logPath, `update helper failed: ${describeErrorDetails(error)}`);
     return 1;
   }
 }
@@ -603,6 +638,15 @@ class Updater {
       if (this.platformName !== "win32") throw new Error(`automatic installation is not supported on ${this.platformName}`);
 
       this.setStatus({ type: "installing", version });
+      this.onLog("INFO", "Starting Windows update helper", {
+        operation: "desktop.update.apply",
+        version,
+        installerPath: filePath,
+        helperExecutable: this.execPath,
+        launcherPid: process.pid,
+        installDir: path.dirname(this.execPath),
+        helperLogPath: this.logPath
+      });
       const child = this.spawnImpl(this.execPath, ["--_tron-apply-update", filePath, this.logPath, path.dirname(this.execPath), String(process.pid)], {
         detached: true,
         stdio: ["ignore", "pipe", "pipe"],
@@ -610,13 +654,24 @@ class Updater {
         cwd: os.tmpdir()
       });
       child.stdin?.on("error", () => {});
+      this.onLog("INFO", "Windows update helper process created", {
+        operation: "desktop.update.apply", version, helperPid: child.pid ?? null
+      });
       try { await waitForHelperReady(child); }
       catch (error) { child.stdin?.end(); child.kill?.(); throw error; }
+      this.onLog("INFO", "Windows update helper reported ready; scheduling forced main-process exit", {
+        operation: "desktop.update.apply", version, helperPid: child.pid ?? null, exitDelayMs: 600
+      });
       child.unref?.();
       child.stdin?.unref?.();
       child.stdout?.unref?.();
       child.stderr?.unref?.();
-      setTimeout(() => this.exit(0), 600).unref?.();
+      setTimeout(() => {
+        this.onLog("INFO", "Forcing main process exit for update installation", {
+          operation: "desktop.update.apply", version, helperPid: child.pid ?? null
+        });
+        this.exit(0);
+      }, 600).unref?.();
       return true;
     } catch (error) {
       this.setStatus({ type: "error", version, message: describeError(error) });
