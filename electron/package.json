@@ -18,7 +18,7 @@
   },
   "build": {
     "appId": "com.tron.desktop",
-    "artifactName": "Tron-${version}-${arch}.${ext}",
+    "artifactName": "Tron-Harness-${version}-${arch}.${ext}",
     "executableName": "tron",
     "publish": null,
     "productName": "Tron",
