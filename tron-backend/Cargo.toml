@@ -59,7 +59,7 @@ base64 = "0.22"
 bcrypt = "0.17"
 flate2 = "1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
-crab-serverapi = { git = "https://gitee.com/person-ai/person-ai-index-rust-sdk.git", rev = "d29d8ad" }
+crab-serverapi = { git = "https://gitee.com/person-ai/person-ai-index-rust-sdk.git", rev = "e79efd048a7dcf84f91f6efae04537316d2e6646" }
 cron = "0.12"
 gmcrypto-core = { version = "1.0.0", features = ["sm4-aead"] }
 grafeo = { version = "0.5.42", default-features = false, features = ["embedded", "storage"] }

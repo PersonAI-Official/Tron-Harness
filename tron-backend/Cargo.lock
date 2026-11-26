@@ -1109,6 +1109,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "crab-serverapi"
+version = "0.4.0"
+source = "git+https://gitee.com/person-ai/person-ai-index-rust-sdk.git?rev=e79efd048a7dcf84f91f6efae04537316d2e6646#e79efd048a7dcf84f91f6efae04537316d2e6646"
+dependencies = [
+ "aes-gcm 0.10.3",
+ "async-trait",
+ "base64 0.22.1",
+ "futures-util",
+ "rand 0.8.7",
+ "regex",
+ "reqwest 0.12.28",
+ "rsa 0.9.10",
+ "rustls",
+ "rustls-native-certs",
+ "serde",
+ "serde_json",
+ "sha1 0.10.7",
+ "sha2 0.10.9",
+ "sm3",
+ "thiserror 2.0.20",
+ "tokio",
+ "tokio-tungstenite 0.24.0",
+ "tokio-util",
+ "tracing",
+ "url",
+ "uuid",
+]
+
+[[package]]
 name = "crc"
 version = "3.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1865,7 +1894,7 @@ source = "git+https://github.com/Penglai-Link/eliteforge-agent-framework.git?rev
 dependencies = [
  "async-trait",
  "base64 0.22.1",
- "crab-serverapi",
+ "crab-serverapi 0.4.0 (git+https://gitee.com/person-ai/person-ai-index-rust-sdk.git?rev=d29d8ad)",
  "eliteforge-agent-capability-auto-routing",
  "eliteforge-agent-core",
  "eliteforge-agent-framework",
@@ -2127,7 +2156,7 @@ source = "git+https://github.com/Penglai-Link/eliteforge-agent-framework.git?rev
 dependencies = [
  "async-trait",
  "base64 0.22.1",
- "crab-serverapi",
+ "crab-serverapi 0.4.0 (git+https://gitee.com/person-ai/person-ai-index-rust-sdk.git?rev=d29d8ad)",
  "eliteforge-agent-core",
  "eliteforge-agent-official-plugin-model-genai",
  "flate2",
@@ -8172,7 +8201,7 @@ dependencies = [
  "bcrypt",
  "chrono",
  "chrono-tz",
- "crab-serverapi",
+ "crab-serverapi 0.4.0 (git+https://gitee.com/person-ai/person-ai-index-rust-sdk.git?rev=e79efd048a7dcf84f91f6efae04537316d2e6646)",
  "cron",
  "eliteforge-agent-capability-auto-routing",
  "eliteforge-agent-capability-chunking",
@@ -8966,7 +8995,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]

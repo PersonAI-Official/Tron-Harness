@@ -188,12 +188,13 @@ class WslBackend {
     const latest = await this.api("/versions/latest?product_code=tron");
     if (normalizeVersion(latest?.version_number ?? latest?.versionNumber) !== version) throw new Error("wsl-version-mismatch");
     const packageInfo = latest?.packages?.find((entry) => Number(entry.os_type ?? entry.osType) === info.osType);
-    if (!packageInfo || !latest.id) throw new Error("wsl-package-not-published");
+    const packageId = String(packageInfo?.id ?? packageInfo?.package_id ?? packageInfo?.packageId ?? "").trim();
+    if (!packageInfo || !packageId || !latest.id) throw new Error("wsl-package-not-published");
 
     this.setStatus("dependencies", { distribution: distro });
     await run(argsFor(distro, ["sh", "-s"], true), { input: dependencies, timeout: 600000 });
     const frontend = await run(argsFor(distro, ["wslpath", "-u", this.frontendDir]));
-    const link = await this.api(`/versions/${encodeURIComponent(String(latest.id))}/download?os_type=${info.osType}`);
+    const link = await this.api(`/versions/${encodeURIComponent(String(latest.id))}/download?package_id=${encodeURIComponent(packageId)}`);
     const url = secureDownloadUrl(link?.download_url ?? link?.downloadUrl);
     this.setStatus("downloading", { distribution: distro, progress: 0 });
     const response = await this.fetchDownload(url.href, { signal: AbortSignal.timeout(600000) });

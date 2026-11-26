@@ -16,12 +16,12 @@ fn main() -> Result<(), Box<dyn Error>> {
             "{}",
             serde_json::json!({
                 "ubuntu": {
-                    "x86_64": os_type::WSL_UBUNTU_X64,
-                    "aarch64": os_type::WSL_UBUNTU_ARM64,
+                    "x86_64": os_type::WSL_AMD64,
+                    "aarch64": os_type::WSL_ARM64,
                 },
                 "debian": {
-                    "x86_64": os_type::WSL_DEBIAN_X64,
-                    "aarch64": os_type::WSL_DEBIAN_ARM64,
+                    "x86_64": os_type::WSL_AMD64,
+                    "aarch64": os_type::WSL_ARM64,
                 },
             })
         );

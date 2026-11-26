@@ -2,23 +2,36 @@ const fs = require("node:fs");
 const fsp = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
-const { spawn: defaultSpawn } = require("node:child_process");
+const { execFile, spawn: defaultSpawn } = require("node:child_process");
 const { finished } = require("node:stream/promises");
 const { DEFAULT_PERSON_AI_SERVER_BASE_URL } = require("./helpers.cjs");
 
 const PRODUCT_CODE = "tron";
 const UPDATE_STATUS_EVENT = "update:status-changed";
 const UPDATE_HELPER_READY = "TRON_UPDATE_HELPER_READY";
+const execFileAsync = promisify(execFile);
 
 const OS_TYPES = Object.freeze({
-  WINDOWS_X86: 110,
-  WINDOWS_X64: 120,
+  WINDOWS_AMD64: 120,
   WINDOWS_ARM64: 130,
-  MACOS_X64: 220,
-  MACOS_ARM64: 230,
-  LINUX_X86: 310,
-  LINUX_X64: 320,
+  MACOS_INTEL: 220,
+  MACOS_SILICON: 230,
+  LINUX_AMD64: 320,
   LINUX_ARM64: 330,
+  WSL_AMD64: 610,
+  WSL_ARM64: 620,
+  /** @deprecated 32-bit Windows packages are no longer published. */
+  WINDOWS_X86: 110,
+  /** @deprecated 32-bit Linux packages are no longer published. */
+  LINUX_X86: 310,
+  /** @deprecated Use WINDOWS_AMD64. */
+  WINDOWS_X64: 120,
+  /** @deprecated Use MACOS_INTEL. */
+  MACOS_X64: 220,
+  /** @deprecated Use MACOS_SILICON. */
+  MACOS_ARM64: 230,
+  /** @deprecated Use LINUX_AMD64. */
+  LINUX_X64: 320,
   GENERIC: 0
 });
 
@@ -35,18 +48,18 @@ const UPDATE_TYPES = new Set([
 
 function currentOsType(platformName = process.platform, archName = process.arch) {
   if (platformName === "win32") {
-    if (archName === "x64") return OS_TYPES.WINDOWS_X64;
+    if (archName === "x64") return OS_TYPES.WINDOWS_AMD64;
     if (archName === "arm64") return OS_TYPES.WINDOWS_ARM64;
     if (archName === "ia32") return OS_TYPES.WINDOWS_X86;
   }
 
   if (platformName === "darwin") {
-    if (archName === "x64") return OS_TYPES.MACOS_X64;
-    if (archName === "arm64") return OS_TYPES.MACOS_ARM64;
+    if (archName === "x64") return OS_TYPES.MACOS_INTEL;
+    if (archName === "arm64") return OS_TYPES.MACOS_SILICON;
   }
 
   if (platformName === "linux") {
-    if (archName === "x64") return OS_TYPES.LINUX_X64;
+    if (archName === "x64") return OS_TYPES.LINUX_AMD64;
     if (archName === "arm64") return OS_TYPES.LINUX_ARM64;
     if (archName === "ia32") return OS_TYPES.LINUX_X86;
   }
@@ -168,6 +181,39 @@ function resolveInstallerFileName(packageInfo, version, platformName) {
     return configuredName;
   }
   return `Tron_${version}${expectedExtension}`;
+}
+
+function packageId(packageInfo) {
+  return String(packageInfo?.id ?? packageInfo?.package_id ?? packageInfo?.packageId ?? "").trim();
+}
+
+function packageFileName(packageInfo) {
+  return String(packageInfo?.file_name ?? packageInfo?.fileName ?? "").trim();
+}
+
+function selectPackage(packages, osType, extension = "") {
+  const candidates = packages.filter((item) => Number(item?.os_type ?? item?.osType) === osType && packageId(item));
+  if (!extension) return candidates[0] ?? null;
+  return candidates.find((item) => packageFileName(item).toLowerCase().endsWith(extension)) ?? null;
+}
+
+async function installedLinuxPackageExtension(execPath, env = process.env) {
+  const appImage = String(env?.APPIMAGE || "").trim();
+  if (appImage.toLowerCase().endsWith(".appimage") || String(execPath).toLowerCase().endsWith(".appimage")) return ".appimage";
+
+  const paths = [String(execPath || "")];
+  try { paths.push(fs.realpathSync.native(execPath)); } catch (_) { /* Package databases accept the launcher path on most installs. */ }
+  for (const candidate of new Set(paths.filter(Boolean))) {
+    try {
+      await execFileAsync("dpkg-query", ["--search", candidate], { timeout: 5000, windowsHide: true });
+      return ".deb";
+    } catch (_) { /* Not managed by dpkg. */ }
+    try {
+      await execFileAsync("rpm", ["--query", "--file", candidate], { timeout: 5000, windowsHide: true });
+      return ".rpm";
+    } catch (_) { /* Not managed by rpm. */ }
+  }
+  return "";
 }
 
 function describeError(error) {
@@ -395,6 +441,7 @@ class Updater {
     this.platformName = options.platformName ?? process.platform;
     this.archName = options.archName ?? process.arch;
     this.execPath = options.execPath ?? process.execPath;
+    this.env = options.env ?? process.env;
     this.fetchImpl = options.fetchImpl ?? globalThis.fetch?.bind(globalThis);
     this.spawnImpl = options.spawnImpl ?? defaultSpawn;
     this.openInstaller = options.openInstaller ?? (async () => "desktop-open-not-configured");
@@ -483,11 +530,18 @@ class Updater {
 
       const osType = currentOsType(this.platformName, this.archName);
       const packages = Array.isArray(latest?.packages) ? latest.packages : [];
-      const packageInfo = packages.find((item) => Number(item?.os_type ?? item?.osType) === osType);
+      const extension = this.platformName === "linux"
+        ? await installedLinuxPackageExtension(this.execPath, this.env)
+        : "";
+      const packageInfo = this.platformName === "linux" && !extension
+        ? null
+        : selectPackage(packages, osType, extension);
       if (!packageInfo) {
         this.update = null;
-        this.onLog("INFO", "No update package published for the current platform", {
-          operation: "desktop.update.check", version, platform: this.platformName, architecture: this.archName
+        this.onLog("INFO", extension
+          ? "No update package matches the current Linux installation format"
+          : "No update package published for the current platform", {
+          operation: "desktop.update.check", version, platform: this.platformName, architecture: this.archName, extension
         });
         return this.setStatus({ type: "upToDate" });
       }
@@ -498,6 +552,7 @@ class Updater {
       this.update = {
         version,
         versionId,
+        packageId: packageId(packageInfo),
         packageInfo,
         fileName: resolveInstallerFileName(packageInfo, version, this.platformName)
       };
@@ -539,7 +594,7 @@ class Updater {
 
     try {
       const downloadPayload = await this.requestJson(
-        `/versions/${encodeURIComponent(update.versionId)}/download?os_type=${currentOsType(this.platformName, this.archName)}`,
+        `/versions/${encodeURIComponent(update.versionId)}/download?package_id=${encodeURIComponent(update.packageId)}`,
         token,
         "requesting update download"
       );
