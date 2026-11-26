@@ -6,28 +6,28 @@ edition = "2024"
 publish = false
 
 [dependencies]
-eliteforge-agent-connector = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", rev = "b72f6fe3d631b65fe80bbc0963f8c8cd8f4923d2" }
-eliteforge-agent-official-plugin-connector-github = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", rev = "b72f6fe3d631b65fe80bbc0963f8c8cd8f4923d2" }
-eliteforge-agent-official-plugin-connector-gitlab = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", rev = "b72f6fe3d631b65fe80bbc0963f8c8cd8f4923d2" }
-eliteforge-agent-official-plugin-connector-gitee = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", rev = "b72f6fe3d631b65fe80bbc0963f8c8cd8f4923d2" }
-eliteforge-agent-capability-chunking = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", rev = "b72f6fe3d631b65fe80bbc0963f8c8cd8f4923d2" }
-eliteforge-agent-capability-auto-routing = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", rev = "b72f6fe3d631b65fe80bbc0963f8c8cd8f4923d2" }
-eliteforge-agent-capability-personai = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", rev = "b72f6fe3d631b65fe80bbc0963f8c8cd8f4923d2" }
-eliteforge-agent-official-plugin-tools-web = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", rev = "b72f6fe3d631b65fe80bbc0963f8c8cd8f4923d2" }
-eliteforge-agent-official-plugin-tools-media = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", rev = "b72f6fe3d631b65fe80bbc0963f8c8cd8f4923d2" }
-eliteforge-agent-official-plugin-tools-discovery = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", rev = "b72f6fe3d631b65fe80bbc0963f8c8cd8f4923d2" }
+eliteforge-agent-connector = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", tag = "1.0.1" }
+eliteforge-agent-official-plugin-connector-github = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", tag = "1.0.1" }
+eliteforge-agent-official-plugin-connector-gitlab = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", tag = "1.0.1" }
+eliteforge-agent-official-plugin-connector-gitee = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", tag = "1.0.1" }
+eliteforge-agent-capability-chunking = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", tag = "1.0.1" }
+eliteforge-agent-capability-auto-routing = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", tag = "1.0.1" }
+eliteforge-agent-capability-personai = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", tag = "1.0.1" }
+eliteforge-agent-official-plugin-tools-web = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", tag = "1.0.1" }
+eliteforge-agent-official-plugin-tools-media = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", tag = "1.0.1" }
+eliteforge-agent-official-plugin-tools-discovery = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", tag = "1.0.1" }
 
-eliteforge-agent-official-plugin-otel = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", rev = "b72f6fe3d631b65fe80bbc0963f8c8cd8f4923d2", features = ["runtime"] }
-eliteforge-agent-official-plugin-otel-collector = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", rev = "b72f6fe3d631b65fe80bbc0963f8c8cd8f4923d2" }
+eliteforge-agent-official-plugin-otel = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", tag = "1.0.1", features = ["runtime"] }
+eliteforge-agent-official-plugin-otel-collector = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", tag = "1.0.1" }
 opentelemetry = { version = "=0.32.0", default-features = false, features = ["trace", "metrics"] }
-eliteforge-agent-official-plugin-a2ui = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", rev = "b72f6fe3d631b65fe80bbc0963f8c8cd8f4923d2" }
-eliteforge-agent-official-plugin-skills = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", rev = "b72f6fe3d631b65fe80bbc0963f8c8cd8f4923d2" }
-eliteforge-agent-plugin-core = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", rev = "b72f6fe3d631b65fe80bbc0963f8c8cd8f4923d2" }
-eliteforge-agent-official-plugin-agui = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", rev = "b72f6fe3d631b65fe80bbc0963f8c8cd8f4923d2" }
-eliteforge-agent-memory = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", rev = "b72f6fe3d631b65fe80bbc0963f8c8cd8f4923d2" }
-eliteforge-agent-official-plugin-model-http = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", rev = "b72f6fe3d631b65fe80bbc0963f8c8cd8f4923d2" }
-eliteforge-agent-official-plugin-tools-human = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", rev = "b72f6fe3d631b65fe80bbc0963f8c8cd8f4923d2" }
-eliteforge-agent-capability-external = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", rev = "b72f6fe3d631b65fe80bbc0963f8c8cd8f4923d2" }
+eliteforge-agent-official-plugin-a2ui = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", tag = "1.0.1" }
+eliteforge-agent-official-plugin-skills = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", tag = "1.0.1" }
+eliteforge-agent-plugin-core = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", tag = "1.0.1" }
+eliteforge-agent-official-plugin-agui = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", tag = "1.0.1" }
+eliteforge-agent-memory = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", tag = "1.0.1" }
+eliteforge-agent-official-plugin-model-http = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", tag = "1.0.1" }
+eliteforge-agent-official-plugin-tools-human = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", tag = "1.0.1" }
+eliteforge-agent-capability-external = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", tag = "1.0.1" }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json"] }
 tracing-appender = "0.2.5"
@@ -36,22 +36,22 @@ sysinfo = { version = "0.37.2", default-features = false, features = ["system"] 
 async-trait = "0.1"
 tokio-util = "0.7"
 futures-util = "0.3"
-eliteforge-agent-official-plugin-tools-mcp = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", rev = "b72f6fe3d631b65fe80bbc0963f8c8cd8f4923d2" }
-eliteforge-agent-capability-tools = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", rev = "b72f6fe3d631b65fe80bbc0963f8c8cd8f4923d2" }
-eliteforge-agent-official-plugin-tools-agents = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", rev = "b72f6fe3d631b65fe80bbc0963f8c8cd8f4923d2" }
+eliteforge-agent-official-plugin-tools-mcp = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", tag = "1.0.1" }
+eliteforge-agent-capability-tools = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", tag = "1.0.1" }
+eliteforge-agent-official-plugin-tools-agents = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", tag = "1.0.1" }
 tron-harness-capability = { path = "crates/tron-harness-capability" }
 tron-i18n = { path = "crates/i18n" }
 tron-remote-pack = { path = "crates/tron-remote-pack" }
-eliteforge-agent-remote-protocol = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", rev = "b72f6fe3d631b65fe80bbc0963f8c8cd8f4923d2" }
-eliteforge-agent-remote-rpc = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", rev = "b72f6fe3d631b65fe80bbc0963f8c8cd8f4923d2" }
-eliteforge-agent-remote-server = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", rev = "b72f6fe3d631b65fe80bbc0963f8c8cd8f4923d2" }
-eliteforge-agent-capability-remote-access = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", rev = "b72f6fe3d631b65fe80bbc0963f8c8cd8f4923d2" }
-eliteforge-agent-capability-development = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", rev = "b72f6fe3d631b65fe80bbc0963f8c8cd8f4923d2" }
-eliteforge-agent-core = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", rev = "b72f6fe3d631b65fe80bbc0963f8c8cd8f4923d2" }
-eliteforge-agent-framework = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", rev = "b72f6fe3d631b65fe80bbc0963f8c8cd8f4923d2", default-features = false }
-eliteforge-agent-capability-runtime = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", rev = "b72f6fe3d631b65fe80bbc0963f8c8cd8f4923d2" }
-eliteforge-agent-official-plugin-tools-local = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", rev = "b72f6fe3d631b65fe80bbc0963f8c8cd8f4923d2" }
-eliteforge-agent-official-plugin-storage-local = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", rev = "b72f6fe3d631b65fe80bbc0963f8c8cd8f4923d2", features = ["bundled-native"] }
+eliteforge-agent-remote-protocol = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", tag = "1.0.1" }
+eliteforge-agent-remote-rpc = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", tag = "1.0.1" }
+eliteforge-agent-remote-server = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", tag = "1.0.1" }
+eliteforge-agent-capability-remote-access = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", tag = "1.0.1" }
+eliteforge-agent-capability-development = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", tag = "1.0.1" }
+eliteforge-agent-core = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", tag = "1.0.1" }
+eliteforge-agent-framework = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", tag = "1.0.1", default-features = false }
+eliteforge-agent-capability-runtime = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", tag = "1.0.1" }
+eliteforge-agent-official-plugin-tools-local = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", tag = "1.0.1" }
+eliteforge-agent-official-plugin-storage-local = { git = "https://github.com/Penglai-Link/eliteforge-agent-framework.git", tag = "1.0.1", features = ["bundled-native"] }
 aes-gcm-siv = "0.11"
 axum = { version = "0.8", features = ["multipart"] }
 async-stream = "0.3"
