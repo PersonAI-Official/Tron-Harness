@@ -1,6 +1,7 @@
 {
   "license": "AGPL-3.0-only",
   "homepage": "https://github.com/PersonAI-Official/Tron-Harness",
+  "desktopName": "tron",
   "name": "tron-desktop-electron",
   "version": "1.1.1",
   "private": true,
@@ -17,6 +18,7 @@
   },
   "build": {
     "appId": "com.tron.desktop",
+    "executableName": "tron",
     "publish": null,
     "productName": "Tron",
     "directories": {
@@ -69,6 +71,7 @@
         "deb",
         "rpm"
       ],
+      "syncDesktopName": true,
       "icon": "assets/tron.png",
       "category": "Utility",
       "maintainer": "Tron contributors"
