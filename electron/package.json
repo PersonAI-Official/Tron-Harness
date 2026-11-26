@@ -18,6 +18,7 @@
   },
   "build": {
     "appId": "com.tron.desktop",
+    "artifactName": "Tron-${version}-${arch}.${ext}",
     "executableName": "tron",
     "publish": null,
     "productName": "Tron",
@@ -73,7 +74,6 @@
       ],
       "syncDesktopName": true,
       "icon": "assets/tron.png",
-      "artifactName": "Tron-${version}-${arch}.${ext}",
       "category": "Utility",
       "maintainer": "Tron contributors"
     },
